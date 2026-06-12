@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 """
-fetch_news.py
--------------
-Scarica i feed RSS configurati in RSS_SOURCES, classifica gli articoli
-per categoria, genera i riassunti e sovrascrive news.js.
+fetch_news.py — scarica RSS, genera news.js con articoli lunghi (10-15 righe min).
 """
 
 import feedparser
 import json
 import re
-import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Configurazione fonti
-# ---------------------------------------------------------------------------
 RSS_SOURCES = [
     # Politica italiana
     {"name": "ANSA",             "url": "https://www.ansa.it/sito/ansait_rss.xml",                          "cat": "politica-italiana"},
@@ -33,7 +26,7 @@ RSS_SOURCES = [
     {"name": "AP",               "url": "https://apnews.com/hub/world-news?output=rss",                      "cat": "geopolitica"},
     {"name": "AFP",              "url": "https://www.afp.com/en/agency/rss-feeds",                           "cat": "geopolitica"},
     {"name": "The Economist",    "url": "https://www.economist.com/international/rss.xml",                   "cat": "geopolitica"},
-    {"name": "El País",          "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",  "cat": "geopolitica"},
+    {"name": "El Pais",          "url": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",  "cat": "geopolitica"},
     # Conflitti
     {"name": "Reuters",          "url": "https://feeds.reuters.com/reuters/worldNews",                       "cat": "conflitti"},
     {"name": "Al Jazeera",       "url": "https://www.aljazeera.com/xml/rss/all.xml",                         "cat": "conflitti"},
@@ -50,63 +43,33 @@ RSS_SOURCES = [
     {"name": "The Economist Ec", "url": "https://www.economist.com/business/rss.xml",                        "cat": "economia-tech"},
 ]
 
-# Parole chiave per filtrare solo notizie rilevanti per categoria
 KEYWORDS = {
-    "politica-italiana": [
-        "italia", "governo", "meloni", "parlamento", "senato", "camera", "ministro",
-        "pd", "fdi", "lega", "forza italia", "m5s", "decreto", "riforma", "quirinale",
-        "premier", "elezioni", "regione", "comune", "sindaco", "fisco",
-    ],
-    "geopolitica": [
-        "nato", "geopolitics", "geopolitica", "summit", "diplomacy", "diplomazia",
-        "us", "usa", "china", "cina", "russia", "europe", "europa", "trump", "xi",
-        "un ", "onu", "g7", "g20", "sanctions", "sanzioni", "treaty", "trattato",
-        "election", "elezioni", "president", "presidente",
-    ],
-    "conflitti": [
-        "war", "guerra", "conflict", "conflitto", "ukraine", "ucraina", "russia",
-        "gaza", "israel", "israele", "hamas", "attack", "attacco", "missile",
-        "troops", "truppe", "ceasefire", "cessate il fuoco", "military", "militare",
-        "nato", "bombing", "refugee", "profughi", "iran", "syria", "siria",
-    ],
-    "ai": [
-        "artificial intelligence", "intelligenza artificiale", "ai ", " ai,", "machine learning",
-        "openai", "chatgpt", "gpt", "gemini", "claude", "anthropic", "deepmind",
-        "llm", "neural", "model", "modello", "robot", "automation", "chip",
-        "nvidia", "tech", "technology", "software", "algorithm", "algoritmo",
-    ],
-    "economia-tech": [
-        "economia", "economy", "market", "mercato", "stock", "borsa", "bce", "fed",
-        "inflation", "inflazione", "rate", "tasso", "startup", "investment", "investimento",
-        "gdp", "pil", "trade", "commercio", "semiconductor", "semiconduttori",
-        "energy", "energia", "crypto", "bitcoin", "fintech", "ipo",
-    ],
+    "politica-italiana": ["italia","governo","meloni","parlamento","senato","camera","ministro","pd","fdi","lega","forza italia","m5s","decreto","riforma","quirinale","premier","elezioni","regione","comune","sindaco"],
+    "geopolitica": ["nato","geopolitics","geopolitica","summit","diplomacy","diplomazia","us","usa","china","cina","russia","europe","europa","trump","xi","un ","onu","g7","g20","sanctions","treaty","election","president","presidente"],
+    "conflitti": ["war","guerra","conflict","conflitto","ukraine","ucraina","russia","gaza","israel","israele","hamas","attack","attacco","missile","troops","ceasefire","military","militare","nato","bombing","refugee","iran","syria"],
+    "ai": ["artificial intelligence","intelligenza artificiale","ai","machine learning","openai","chatgpt","gpt","gemini","claude","anthropic","deepmind","llm","neural","model","robot","automation","chip","nvidia","tech","technology","software","algorithm"],
+    "economia-tech": ["economia","economy","market","mercato","stock","borsa","bce","fed","inflation","inflazione","rate","tasso","startup","investment","gdp","pil","trade","semiconductor","energy","crypto","bitcoin","fintech","ipo"],
 }
 
-MAX_PER_CAT = 5  # Massimo articoli per categoria
+MAX_PER_CAT = 5
+MIN_BODY_CHARS = 800  # minimo per considerare il corpo "lungo"
 ROOT = Path(__file__).parent.parent
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-def clean_html(text: str) -> str:
-    """Rimuove tag HTML e normalizza spazi."""
+def clean_html(text):
     text = re.sub(r"<[^>]+>", " ", text or "")
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
-def truncate(text: str, max_chars: int = 300) -> str:
+def truncate(text, max_chars=300):
     if len(text) <= max_chars:
         return text
-    return text[:max_chars].rsplit(" ", 1)[0] + "…"
+    return text[:max_chars].rsplit(" ", 1)[0] + "\u2026"
 
 
-def relative_time(entry) -> str:
-    """Restituisce un tempo relativo leggibile dall'entry del feed."""
+def relative_time(entry):
     try:
-        import time
         published = entry.get("published_parsed") or entry.get("updated_parsed")
         if not published:
             return "poco fa"
@@ -123,113 +86,89 @@ def relative_time(entry) -> str:
         return "recente"
 
 
-def score_entry(entry, cat: str) -> int:
-    """Punteggio di rilevanza basato su keyword matching."""
+def score_entry(entry, cat):
     text = (entry.get("title", "") + " " + clean_html(entry.get("summary", ""))).lower()
     return sum(1 for kw in KEYWORDS.get(cat, []) if kw in text)
 
 
-def build_body(entry) -> str:
-    """Costruisce il corpo esteso dell'articolo."""
-    title   = clean_html(entry.get("title", ""))
+def build_body(entry):
+    """Estrae il corpo piu' lungo possibile dall'entry."""
     summary = clean_html(entry.get("summary", "") or entry.get("description", ""))
     content_list = entry.get("content", [])
     full = ""
-    if content_list:
-        full = clean_html(content_list[0].get("value", ""))
-    # Se abbiamo contenuto esteso, lo usiamo; altrimenti facciamo wrapping del summary
-    body_text = full if len(full) > len(summary) + 100 else summary
-    # Dividi in paragrafi leggibili (ogni ~400 caratteri)
-    words = body_text.split()
+    for c in content_list:
+        candidate = clean_html(c.get("value", ""))
+        if len(candidate) > len(full):
+            full = candidate
+    body = full if len(full) > len(summary) + 50 else summary
+    # Suddividi in paragrafi ogni ~400 caratteri alla fine di una frase
+    if len(body) < MIN_BODY_CHARS:
+        # corpo troppo corto: teniamolo com'e', verra' espanso nell'HTML
+        return body
+    words = body.split()
     paragraphs = []
     current = []
     count = 0
     for w in words:
         current.append(w)
         count += len(w) + 1
-        if count >= 380 and w.endswith("."):
+        if count >= 400 and w.endswith("."):
             paragraphs.append(" ".join(current))
             current, count = [], 0
     if current:
         paragraphs.append(" ".join(current))
-    return "\n\n".join(paragraphs) if paragraphs else summary
+    return "\n\n".join(paragraphs)
 
 
-# ---------------------------------------------------------------------------
-# Fetch
-# ---------------------------------------------------------------------------
-
-def fetch_all() -> dict[str, list]:
-    buckets: dict[str, list] = {cat: [] for cat in KEYWORDS}
-
+def fetch_all():
+    buckets = {cat: [] for cat in KEYWORDS}
     for source in RSS_SOURCES:
         cat = source["cat"]
-        print(f"  Fetching {source['name']} ({source['url'][:60]}…)")
+        print(f"  Fetching {source['name']}...")
         try:
             feed = feedparser.parse(source["url"])
-            entries = feed.entries[:20]  # prendi i 20 più recenti
+            entries = feed.entries[:20]
         except Exception as e:
             print(f"    ERRORE: {e}")
             continue
-
         for entry in entries:
             score = score_entry(entry, cat)
             if score == 0 and cat not in ("ai", "economia-tech"):
-                # Per categorie specifiche filtriamo; per quelle più ampie includiamo comunque
                 continue
             title   = clean_html(entry.get("title", "")).strip()
             summary = clean_html(entry.get("summary", "") or entry.get("description", ""))
-            if not title or len(summary) < 40:
+            if not title or len(summary) < 30:
                 continue
+            body = build_body(entry)
             buckets[cat].append({
                 "title":   title,
                 "summary": truncate(summary, 280),
-                "body":    build_body(entry),
+                "body":    body,
                 "source":  source["name"],
                 "url":     entry.get("link", source["url"]),
                 "time":    relative_time(entry),
                 "score":   score,
             })
-
-    # Dedup per titolo e prendi i migliori per categoria
-    result: dict[str, list] = {}
+    result = {}
     for cat, items in buckets.items():
-        seen_titles: set[str] = set()
+        seen = set()
         unique = []
         for item in sorted(items, key=lambda x: -x["score"]):
             norm = re.sub(r"[^a-z0-9]", "", item["title"].lower())[:60]
-            if norm not in seen_titles:
-                seen_titles.add(norm)
+            if norm not in seen:
+                seen.add(norm)
                 unique.append(item)
         result[cat] = unique[:MAX_PER_CAT]
     return result
 
 
-# ---------------------------------------------------------------------------
-# Genera news.js
-# ---------------------------------------------------------------------------
+def js_string(s):
+    """Serializza una stringa come JSON string JS-safe."""
+    return json.dumps(s, ensure_ascii=False)
 
-def generate_news_js(buckets: dict[str, list]) -> str:
+
+def generate_news_js(buckets):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    all_news = []
-    news_id = 1
-    for cat, items in buckets.items():
-        for item in items:
-            body_escaped = item["body"].replace("`", "\\`").replace("${", "\\${") 
-            all_news.append({
-                "id":      news_id,
-                "cat":     cat,
-                "title":   item["title"],
-                "summary": item["summary"],
-                "body":    item["body"],
-                "source":  item["source"],
-                "url":     item["url"],
-                "time":    item["time"],
-                "tags":    [],
-            })
-            news_id += 1
-
-    # Genera il JS manualmente per preservare i template literal nel body
     lines = []
     lines.append(f"// Generato automaticamente il {now} da scripts/fetch_news.py")
     lines.append("// NON modificare manualmente: viene sovrascritto ogni ora dalla GitHub Action.")
@@ -240,38 +179,35 @@ def generate_news_js(buckets: dict[str, list]) -> str:
     ) + ";")
     lines.append("")
     lines.append("const NEWS = [")
-    for n in all_news:
-        body_js = n["body"].replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
-        lines.append("  {")
-        lines.append(f"    id: {n['id']},")
-        lines.append(f"    cat: {json.dumps(n['cat'])},")
-        lines.append(f"    title: {json.dumps(n['title'], ensure_ascii=False)},")
-        lines.append(f"    summary: {json.dumps(n['summary'], ensure_ascii=False)},")
-        lines.append(f"    body: `{body_js}`,")
-        lines.append(f"    source: {json.dumps(n['source'])},")
-        lines.append(f"    url: {json.dumps(n['url'])},")
-        lines.append(f"    time: {json.dumps(n['time'])},")
-        lines.append(f"    tags: [],")
-        lines.append("  },")
+    news_id = 1
+    for cat, items in buckets.items():
+        for item in items:
+            # Usa JSON string normale (no template literal) per evitare problemi di escape
+            lines.append("  {")
+            lines.append(f"    id: {news_id},")
+            lines.append(f"    cat: {js_string(cat)},")
+            lines.append(f"    title: {js_string(item['title'])},")
+            lines.append(f"    summary: {js_string(item['summary'])},")
+            lines.append(f"    body: {js_string(item['body'])},")
+            lines.append(f"    source: {js_string(item['source'])},")
+            lines.append(f"    url: {js_string(item['url'])},")
+            lines.append(f"    time: {js_string(item['time'])},")
+            lines.append("    tags: [],")
+            lines.append("  },")
+            news_id += 1
     lines.append("];")    
     return "\n".join(lines) + "\n"
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 if __name__ == "__main__":
     print("=== fetch_news.py ===")
     print(f"Avviato: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    print("Scaricamento feed RSS...")
     buckets = fetch_all()
     total = sum(len(v) for v in buckets.values())
     print(f"Articoli raccolti: {total}")
     for cat, items in buckets.items():
-        print(f"  {cat}: {len(items)} articoli")
+        print(f"  {cat}: {len(items)}")
     js = generate_news_js(buckets)
     out_path = ROOT / "news.js"
     out_path.write_text(js, encoding="utf-8")
-    print(f"news.js aggiornato ({len(js)} byte) -> {out_path}")
-    print("Done.")
+    print(f"news.js aggiornato ({len(js)} byte)")
