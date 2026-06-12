@@ -17,10 +17,15 @@
         <button class="cat-btn" data-cat="politica-italiana">Politica IT</button>
         <button class="cat-btn" data-cat="geopolitica">Geopolitica</button>
         <button class="cat-btn" data-cat="conflitti">Conflitti</button>
-        <button class="cat-btn" data-cat="ai">AI & Tech</button>
+        <button class="cat-btn" data-cat="ai">AI &amp; Tech</button>
         <button class="cat-btn" data-cat="economia-tech">Economia</button>
+        <button class="cat-btn" data-cat="preferiti">★ Preferiti</button>
       </nav>
-      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌙</button>
+      <div class="header-right">
+        <span class="refresh-timer" id="refreshTimer">Aggiorn. tra 60 min</span>
+        <button class="refresh-btn" id="refreshBtn" title="Aggiorna ora">↻</button>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌙</button>
+      </div>
     </div>
   </header>
 
@@ -32,8 +37,12 @@
       <div class="hero-meta">
         <span class="hero-cat" id="heroCat"></span>
         <span class="hero-time" id="heroTime"></span>
+        <span class="hero-source" id="heroSource"></span>
       </div>
-      <button class="hero-read-btn" id="heroReadBtn">Leggi di più</button>
+      <div class="hero-actions">
+        <button class="hero-read-btn" id="heroReadBtn">Leggi di più</button>
+        <button class="fav-btn hero-fav" id="heroFavBtn" aria-label="Salva nei preferiti">★</button>
+      </div>
     </section>
 
     <section class="news-grid-section">
@@ -44,7 +53,10 @@
   <!-- Modal -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal" id="modal">
-      <button class="modal-close" id="modalClose">✕</button>
+      <div class="modal-header">
+        <button class="modal-close" id="modalClose">✕</button>
+        <button class="fav-btn modal-fav" id="modalFavBtn" aria-label="Salva nei preferiti">★</button>
+      </div>
       <div class="modal-cat" id="modalCat"></div>
       <h2 class="modal-title" id="modalTitle"></h2>
       <div class="modal-meta">
@@ -52,6 +64,7 @@
         <span id="modalTime"></span>
       </div>
       <div class="modal-body" id="modalBody"></div>
+      <div class="modal-sources-block" id="modalSourcesBlock"></div>
       <a class="modal-link" id="modalLink" href="#" target="_blank" rel="noopener">Leggi l'articolo originale →</a>
     </div>
   </div>

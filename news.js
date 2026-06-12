@@ -1,237 +1,331 @@
 // ============================================================
-// NEWS DATA
-// Aggiorna queste notizie manualmente o collega un'API RSS.
-// Ogni notizia ha: id, cat, title, summary, body, source, url, time
-// cat: 'politica-italiana' | 'geopolitica' | 'conflitti' | 'ai' | 'economia-tech'
+// FONTI RSS (usate per etichettare le notizie per categoria)
+// Per un vero fetch automatico serve un backend/proxy o GitHub Actions
+// che aggiri i limiti CORS di GitHub Pages.
 // ============================================================
+const RSS_SOURCES = [
+  { name: 'ANSA',          url: 'https://www.ansa.it/sito/ansait_rss.xml',                             cat: 'politica-italiana' },
+  { name: 'Corriere',      url: 'https://xml2.corrieredellasera.it/rss/homepage.xml',                  cat: 'politica-italiana' },
+  { name: 'Il Sole 24 Ore',url: 'https://www.ilsole24ore.com/rss/economia.xml',                        cat: 'economia-tech' },
+  { name: 'Reuters',       url: 'https://feeds.reuters.com/reuters/topNews',                           cat: 'conflitti' },
+  { name: 'BBC World',     url: 'https://feeds.bbci.co.uk/news/world/rss.xml',                         cat: 'geopolitica' },
+  { name: 'AP News',       url: 'https://apnews.com/hub/world-news?output=rss',                        cat: 'geopolitica' },
+  { name: 'Al Jazeera',    url: 'https://www.aljazeera.com/xml/rss/all.xml',                           cat: 'conflitti' },
+  { name: 'The Verge',     url: 'https://www.theverge.com/rss/index.xml',                              cat: 'ai' },
+  { name: 'Wired IT',      url: 'https://www.wired.it/feed/rss',                                       cat: 'ai' },
+  { name: 'TechCrunch',    url: 'https://techcrunch.com/feed/',                                        cat: 'ai' },
+  { name: 'Bloomberg',     url: 'https://feeds.bloomberg.com/technology/news.rss',                     cat: 'economia-tech' },
+  { name: 'Financial Times',url:'https://www.ft.com/rss/home',                                         cat: 'economia-tech' }
+];
 
+// ============================================================
+// NOTIZIE — corpo esteso e approfondito
+// ============================================================
 const NEWS = [
   {
     id: 1,
     cat: 'politica-italiana',
     title: 'Riforma fiscale: il governo approva il nuovo catasto',
-    summary: 'Il Consiglio dei Ministri ha dato il via libera alla revisione del catasto immobiliare. La riforma mira ad aggiornare i valori degli immobili, rimasti fermi agli anni \'80, con impatto stimato su milioni di proprietari.',
-    body: `Il governo Meloni ha approvato in CdM il decreto attuativo della riforma catastale, uno dei dossier più complessi e politicamente sensibili degli ultimi anni.
+    summary: 'Il Consiglio dei Ministri ha dato il via libera alla revisione del catasto immobiliare. La riforma mira ad aggiornare i valori degli immobili rimasti fermi agli anni \u201980, con un impatto stimato su milioni di proprietari e un effetto potenziale sulla tassazione della casa.',
+    body: `Il governo ha approvato il decreto attuativo sulla revisione del catasto, uno dei dossier più complessi e politicamente divisivi degli ultimi anni in Italia.
 
-<strong>Cosa cambia</strong>
-I valori catastali saranno rivalutati progressivamente entro il 2028 su base di valori di mercato reali. L'obiettivo dichiarato è ridurre l'evasione fiscale nel settore immobiliare stimata in oltre 8 miliardi annui.
+<strong>Il contesto</strong>
+I valori catastali in Italia sono fermi in media agli anni '80 e '90, creando una distanza enorme tra la base imponibile ufficiale e i prezzi reali di mercato. Questa forbice alimenta forme di elusione fiscale difficili da perseguire e distorce il gettito delle imposte patrimoniali locali come l'IMU.
 
-<strong>Le reazioni</strong>
-L'opposizione accusa il governo di aver tradito le promesse elettorali di «non toccare la casa». Confedilizia parla di «stangata mascherata». Il MEF replica che non ci sarà aumento della pressione fiscale complessiva.
+<strong>Cosa cambia operativamente</strong>
+Il decreto prevede un aggiornamento progressivo delle rendite catastali sulla base di valori di mercato aggiornati, da realizzare entro un arco di tre anni. Non ci sarà un aumento automatico delle aliquote, ma la base di calcolo per IMU, TARI e imposte di registro cambierà per molti immobili.
 
-<strong>Cosa succede ora</strong>
-Il decreto passa ora alle Camere per la conversione. I tecnici del Tesoro stimano un periodo transitorio di tre anni prima che le nuove rendite abbiano effetto sulle imposte.`,
+<strong>Il dibattito politico</strong>
+L'opposizione denuncia una contraddizione rispetto alle promesse elettorali sul fisco e sulla protezione della prima casa. Confedilizia parla di "riforma mascherata da riordino tecnico". Il MEF risponde che i correttivi previsti neutralizzeranno gli effetti sulle abitazioni principali.
+
+<strong>Effetti attesi sul mercato</strong>
+Gli esperti segnalano che la rivalutazione catastale potrebbe avere effetti sul mercato immobiliare, rendendo più costoso detenere immobili non produttivi e aumentando il valore fiscale delle compravendite.
+
+<strong>I prossimi passi</strong>
+Il decreto passa ora al Parlamento per la conversione in legge. I sindacati della proprietà promettono emendamenti massicci. La tempistica è stretta: il governo vuole il via libera entro l'estate.`,
     source: 'Il Sole 24 Ore',
     url: 'https://www.ilsole24ore.com',
-    time: '2 ore fa'
+    time: '2 ore fa',
+    tags: ['fisco', 'immobili', 'catasto', 'governo']
   },
   {
     id: 2,
     cat: 'politica-italiana',
-    title: 'Europee 2026: FdI stabile al 27%, il PD insegue al 21%',
-    summary: 'I sondaggi della settimana confermano il primato di Fratelli d\'Italia in vista delle elezioni europee di autunno. Il centrosinistra prova a stringere le distanze con il nuovo segretario dem.',
-    body: `A sei mesi dalle elezioni europee del novembre 2026, il quadro politico italiano mostra una sostanziale stabilità.
+    title: 'Sondaggi: FdI stabile al 27%, il PD risale al 21%',
+    summary: 'A sei mesi dalle europee, il quadro politico italiano resta sostanzialmente stabile. Il partito di Meloni mantiene il primato, ma il centrosinistra rosicchia qualche punto in zone chiave.',
+    body: `I sondaggi della settimana offrono un quadro di sostanziale stabilità con alcune dinamiche interessanti sia nel centrodestra che nell'opposizione.
 
-<strong>Il centrodestra</strong>
-FdI si attesta attorno al 27%, confermando la leadership di Giorgia Meloni. FI guadagna un punto grazie alla gestione del dossier migranti a Bruxelles. La Lega resta bloccata all'8%.
+<strong>Il quadro numerico</strong>
+Fratelli d'Italia si attesta tra il 26% e il 28% secondo le diverse rilevazioni. La Lega si stabilizza all'8%, Forza Italia recupera al 9% grazie a una comunicazione più attiva sui dossier europei. Nel centrosinistra, il PD sale al 21% mentre il M5S si consolida al 15% con una forte radice nel Mezzogiorno.
 
-<strong>Il centrosinistra</strong>
-Il PD segna 21%, in leggera risalita rispetto al minimo di marzo. Il M5S consolida il 15% nel Sud Italia. AVS si attesta al 6%, sopra la soglia di sbarramento europea.
+<strong>La partita europea</strong>
+Il vero campo di battaglia è la composizione dei gruppi parlamentari a Bruxelles. L'Italia conta molto per i numeri di ECR e del PPE, e ogni accordo pre-elettorale condizionerà le posizioni dei partiti italiani sui temi cruciali: difesa europea, allargamento, bilancio e immigrazione.
 
-<strong>Il contesto</strong>
-Il dibattito si concentra su difesa europea, migrazioni e bilancio UE. L'Italia chiede margini di flessibilità per il piano industriale legato ai fondi PNRR 2.0.`,
+<strong>Il fattore PNRR</strong>
+La gestione dei fondi europei e i ritardi nelle riforme strutturali continuano ad essere un elemento di vulnerabilità per il governo. L'opposizione prova a capitalizzare, ma non riesce ancora a tradurre la critica in consenso netto.
+
+<strong>Il centrosinistra e la leadership</strong>
+Il nuovo segretario democratico sta tentando una linea più netta su lavoro, transizione ecologica e welfare. La sfida è costruire un'alleanza larga senza perdere l'identità politica di riferimento.`,
     source: 'Corriere della Sera',
     url: 'https://www.corriere.it',
-    time: '5 ore fa'
+    time: '5 ore fa',
+    tags: ['sondaggi', 'elezioni', 'FdI', 'PD', 'europee']
   },
   {
     id: 3,
     cat: 'geopolitica',
-    title: 'NATO espande la presenza nell\'Indo-Pacifico: ufficio di liaison a Tokyo',
-    summary: 'L\'Alleanza Atlantica apre un ufficio permanente in Giappone, segnando il più significativo ampliamento geografico della sua storia. La Cina protesta formalmente.',
-    body: `Il Segretario Generale della NATO ha inaugurato a Tokyo il primo ufficio di collegamento permanente dell'Alleanza in Asia, una mossa che ridefinisce il perimetro geopolitico del blocco occidentale.
+    title: 'NATO nell'Indo-Pacifico: ufficio permanente a Tokyo',
+    summary: 'L'Alleanza Atlantica apre un ufficio di collegamento in Giappone, segnando il più significativo ampliamento geografico della sua storia. La Cina protesta formalmente e annuncia esercitazioni navali.',
+    body: `L'inaugurazione dell'ufficio di collegamento NATO a Tokyo è un momento di svolta nel modo in cui l'Alleanza pensa alla sicurezza globale.
 
 <strong>Il significato strategico</strong>
-L'ufficio non implica obblighi di difesa collettiva per il Giappone, ma crea un canale stabile di condivisione di intelligence e coordinamento su cyber-sicurezza, supply chain critica e deterrenza navale nel Pacifico.
+L'ufficio non estende formalmente l'articolo 5 al Giappone, ma crea un canale permanente di coordinamento su intelligence, cyber-sicurezza, supply chain critiche e deterrenza navale nel Pacifico. Per gli analisti, è il primo passo verso una NATO con una vera dimensione asiatica.
 
-<strong>La risposta cinese</strong>
-Pechino ha convocato l'ambasciatore giapponese e ha emesso una nota di protesta formale, definendo la mossa «una provocazione destabilizzante». Il Ministero della Difesa PLA ha annunciato esercitazioni navali nello Stretto di Taiwan.
+<strong>Il contesto geopolitico</strong>
+La scelta arriva in un momento in cui la Cina ha accelerato la modernizzazione militare, aumentato la pressione su Taiwan e stretto legami con la Russia. Il Giappone, dal canto suo, ha già raddoppiato il budget della difesa al 2% del PIL e sta sviluppando capacità di contrattacco.
 
-<strong>Il quadro più ampio</strong>
-L'apertura segue l'accordo AUKUS 2.0 e il rafforzamento del Quad. Analisti vedono un'accelerazione verso una NATO de facto con dimensione indo-pacifica entro il 2030.`,
+<strong>La reazione cinese</strong>
+Pechino ha convocato l'ambasciatore giapponese e ha emesso una nota di protesta formale, definendo la mossa una "grave provocazione destabilizzante". Il ministero della Difesa PLA ha annunciato esercitazioni navali nello stretto di Taiwan nei prossimi giorni.
+
+<strong>L'asse AUKUS e Quad</strong>
+L'apertura a Tokyo si inserisce in un quadro più ampio che include AUKUS 2.0, il rafforzamento del Quad (USA, India, Giappone, Australia) e i nuovi accordi di difesa tra Corea del Sud e NATO. Insieme, questi segnali disegnano un nuovo perimetro di sicurezza occidentale in Asia.
+
+<strong>Le implicazioni economiche</strong>
+Il dossier della sicurezza è inseparabile da quello economico: semiconduttori, terre rare, rotte commerciali e tecnologia dual-use sono al centro di una competizione che l'ufficio NATO contribuisce a inquadrare in termini di sicurezza collettiva.`,
     source: 'Foreign Policy',
     url: 'https://foreignpolicy.com',
-    time: '3 ore fa'
+    time: '3 ore fa',
+    tags: ['NATO', 'Giappone', 'Cina', 'Indo-Pacifico', 'difesa']
   },
   {
     id: 4,
     cat: 'geopolitica',
-    title: 'Elezioni in India: Modi vince il terzo mandato, ma con meno seggi',
-    summary: 'Il BJP di Narendra Modi ottiene la maggioranza grazie ai partner di coalizione, ma perde terreno nei seggi diretti. L\'opposizione Congress torna protagonista in diversi stati chiave.',
-    body: `Le elezioni generali indiane si chiudono con una vittoria di Modi che però ridisegna gli equilibri interni della coalizione NDA.
+    title: 'Trump e Xi a Mar-a-Lago: accordo parziale sui dazi',
+    summary: 'Il summit bilaterale si chiude con una tregua commerciale di 90 giorni e impegni agricoli cinesi. Restano intatte le restrizioni tech sui semiconduttori.',
+    body: `Il vertice tra Trump e Xi ha prodotto un documento di intenti che allenta le tensioni immediate senza risolvere i nodi strutturali del conflitto commerciale tra le due superpotenze.
 
-<strong>I numeri</strong>
-Il BJP ottiene circa 240 seggi su 543, sotto la soglia di maggioranza assoluta (272). Modi governerà grazie a TDP e JD(U), i partner regionali, che diventano arbitri dell'agenda legislativa.
+<strong>I termini dell'accordo</strong>
+Gli USA sospendono per 90 giorni i dazi aggiuntivi del 15% sui beni di consumo cinesi. La Cina si impegna ad acquistare prodotti agricoli americani per 50 miliardi di dollari nei prossimi due anni e a facilitare l'accesso al mercato cinese per alcune categorie di servizi finanziari americani.
 
-<strong>Le implicazioni economiche</strong>
-I mercati hanno reagito con una correzione del 5% sul Sensex. Gli investitori temono che le concessioni ai partner di coalizione rallentino le riforme strutturali, in particolare sul mercato del lavoro e sulle privatizzazioni.
+<strong>I nodi irrisolti</strong>
+Le restrizioni tecnologiche restano intatte: NVIDIA, ASML e altri fornitori di tecnologie avanzate per semiconduttori non possono esportare in Cina. Il dossier Taiwan non è stato discusso formalmente, ma rimane lo scenario di rischio massimo per entrambe le parti.
 
-<strong>Il quadro geopolitico</strong>
-L'India mantiene la sua postura di «autonomia strategica»: partner degli USA nella tecnologia e difesa, ma riluttante a isolare la Russia sulle forniture energetiche. Il terzo mandato Modi non cambierà questa equazione di fondo.`,
-    source: 'The Economist',
-    url: 'https://www.economist.com',
-    time: '8 ore fa'
+<strong>La lettura dei mercati</strong>
+Wall Street ha risposto con un rialzo dell'1,8% sull'S&P 500 nella giornata dell'annuncio. Gli analisti avvertono però che la tregua di 90 giorni è un respiro tattico, non una soluzione strutturale, e che i fondamentali del conflitto tecnologico e geopolitico tra USA e Cina restano immutati.
+
+<strong>Il ruolo dell'Europa</strong>
+Bruxelles guarda con attenzione all'evoluzione: un possibile accordo bilaterale USA-Cina potrebbe marginalizzare l'UE oppure, al contrario, costringerla a scegliere con più nettezza a quale blocco tecnologico allinearsi.`,
+    source: 'Wall Street Journal',
+    url: 'https://www.wsj.com',
+    time: '5 ore fa',
+    tags: ['Trump', 'Xi', 'dazi', 'commercio', 'geopolitica']
   },
   {
     id: 5,
     cat: 'conflitti',
-    title: 'Ucraina: negoziati a Istanbul, cessate il fuoco tecnico di 72 ore',
-    summary: 'Russia e Ucraina hanno accettato un cessate il fuoco temporaneo di 72 ore in vista dei colloqui mediati dalla Turchia. È il primo contatto diretto ad alto livello da più di un anno.',
-    body: `I governi di Mosca e Kyiv hanno concordato una pausa nei combattimenti di tre giorni, che entra in vigore dalla mezzanotte di oggi, in concomitanza con i colloqui di pace di Istanbul.
+    title: 'Ucraina: colloqui a Istanbul, tregua tecnica di 72 ore',
+    summary: 'Russia e Ucraina hanno concordato una pausa temporanea nei combattimenti per consentire i negoziati mediati dalla Turchia. È il primo contatto diretto ad alto livello da oltre un anno.',
+    body: `La tregua di 72 ore e l'apertura dei colloqui di Istanbul rappresentano un segnale limitato ma significativo dopo mesi di stagnazione diplomatica totale.
 
 <strong>La struttura dei negoziati</strong>
-Al tavolo siederanno delegazioni di secondo livello, non i rispettivi ministri degli Esteri. La mediazione turca è affiancata da un rappresentante dell'ONU. Gli USA partecipano come osservatori.
+Al tavolo siederanno delegazioni tecniche di secondo livello, non i rispettivi ministri degli Esteri. La mediazione turca è affiancata da un osservatore ONU. Gli USA partecipano come osservatori senza poteri negoziali formali.
 
-<strong>I nodi aperti</strong>
-Le posizioni restano distanti: Mosca chiede il riconoscimento dei territori occupati; Kyiv esige il ritiro totale come precondizione. Il tema delle garanzie di sicurezza post-accordo è il vero ostacolo.
+<strong>I temi sul tavolo</strong>
+I colloqui coprono cinque aree: corridoi umanitari, prigionieri di guerra, status dei territori occupati, garanzie di sicurezza post-accordo e un eventuale meccanismo di monitoraggio del cessate il fuoco. Le posizioni restano molto distanti su quasi tutti i punti.
 
-<strong>Reazioni internazionali</strong>
-L'UE saluta «con cauto ottimismo» la tregua. La Polonia e i Baltici avvertono contro accordi che cristallizzino le conquiste territoriali russe. Zelensky ha definito i colloqui «un test, non una svolta».`,
+<strong>I nodi politici</strong>
+Mosca chiede il riconoscimento formale dei territori occupati come condizione per qualsiasi accordo duraturo. Kyiv insiste sul ritiro totale come precondizione e sul mantenimento pieno della sovranità territoriale. La questione delle garanzie di sicurezza — chi garantisce cosa a Kyiv in caso di violazione — è forse il nodo più difficile.
+
+<strong>Le reazioni internazionali</strong>
+L'UE accoglie la tregua "con cauto ottimismo". Polonia e Paesi baltici avvertono contro accordi che cristallizzino le conquiste territoriali russe. Zelensky ha definito i colloqui "un test, non una svolta".
+
+<strong>Lo scenario più probabile</strong>
+Gli analisti ritengono improbabile un accordo complessivo in tempi brevi. Il valore della tregua è soprattutto umanitario: ridurre le perdite civili immediate e creare uno spazio minimo per ulteriori contatti diplomatici.`,
     source: 'Reuters',
     url: 'https://www.reuters.com',
-    time: '1 ora fa'
+    time: '1 ora fa',
+    tags: ['Ucraina', 'Russia', 'negoziati', 'guerra', 'Turchia']
   },
   {
     id: 6,
     cat: 'conflitti',
-    title: 'Gaza: accordo per una seconda fase di cessate il fuoco',
-    summary: 'Mediatori egiziani e qatarini riferiscono di un accordo di principio per estendere la tregua a Gaza a una seconda fase di 42 giorni, che includerebbe il rilascio di ulteriori ostaggi.',
-    body: `Le trattative per la seconda fase dell'accordo di cessate il fuoco a Gaza sono entrate nella fase finale, con l'Egitto e il Qatar che riferiscono di un testo condiviso ancora da ratificare.
+    title: 'Gaza: accordo di principio per la seconda fase del cessate il fuoco',
+    summary: 'Mediatori egiziani e qatarini annunciano un testo condiviso per una tregua di 42 giorni con rilascio di ostaggi e aumento degli aiuti. Restano resistenze interne in entrambi i campi.',
+    body: `Le trattative per la seconda fase dell'accordo di cessate il fuoco a Gaza sono entrate nella fase finale, con un testo di massima condiviso tra le parti.
 
 <strong>I termini dell'accordo</strong>
-La seconda fase prevede 42 giorni di tregua, il rilascio di ulteriori 33 ostaggi israeliani in cambio di centinaia di detenuti palestinesi e un incremento significativo degli aiuti umanitari nel nord di Gaza.
+La seconda fase prevede 42 giorni di tregua, il rilascio di 33 ostaggi israeliani in cambio di centinaia di detenuti palestinesi, un incremento massiccio degli aiuti umanitari nel nord della Striscia e l'apertura di corridoi per i civili sfollati.
 
-<strong>Le difficoltà</strong>
-All'interno del gabinetto israeliano ci sono voci contrarie a qualsiasi accordo che non preveda la definitiva smilitarizzazione di Hamas. Hamas, dal canto suo, chiede garanzie di un ritiro permanente delle IDF.
+<strong>Le resistenze interne</strong>
+All'interno del gabinetto israeliano, la destra nazionalista si oppone a qualsiasi accordo che non garantisca la smilitarizzazione definitiva di Hamas. Hamas, dal canto suo, chiede garanzie scritte di un ritiro permanente delle IDF e il ripristino delle infrastrutture civili prima di qualsiasi impegno formale sul proprio futuro politico-militare.
 
 <strong>La situazione umanitaria</strong>
-Oltre 2,1 milioni di persone restano sfollate. Le agenzie ONU stimano che il 70% delle infrastrutture civili di Gaza sia stato distrutto. L'OMS segnala il rischio di carestia in alcune aree.`,
+Oltre 2,1 milioni di persone restano sfollate. Le agenzie ONU stimano che il 70% delle infrastrutture civili di Gaza sia distrutto. L'OMS segnala rischio di carestia in diverse aree del nord. Ogni giorno di ritardo nell'accordo ha un costo umano immediato e misurabile.
+
+<strong>Il ruolo degli attori regionali</strong>
+Egitto e Qatar si sono guadagnati un ruolo di mediatori indispensabili. La Giordania e l'Arabia Saudita spingono per una soluzione che non escluda prospettive di governance civile palestinese nel post-conflitto. Il dossier si intreccia direttamente con la normalizzazione dei rapporti tra Israele e Arabia Saudita.
+
+<strong>Cosa succede ora</strong>
+L'accordo deve essere ratificato da entrambe le delegazioni nei prossimi giorni. Anche un'intesa firmata non garantisce automaticamente la tenuta della tregua sul campo.`,
     source: 'Al Jazeera',
     url: 'https://www.aljazeera.com',
-    time: '4 ore fa'
+    time: '4 ore fa',
+    tags: ['Gaza', 'Israele', 'Hamas', 'cessate-il-fuoco', 'ostaggi']
   },
   {
     id: 7,
     cat: 'ai',
-    title: 'GPT-5 supera i medici umani nei test diagnostici: lo studio di Stanford',
-    summary: 'Un paper peer-reviewed pubblicato su Nature Medicine mostra che GPT-5 raggiunge il 92% di accuratezza diagnostica su casi clinici complessi, superando la media dei medici generalisti.',
-    body: `Uno studio condotto da Stanford e pubblicato su Nature Medicine ha valutato le capacità diagnostiche di GPT-5 su un dataset di 5.000 casi clinici reali anonimizzati.
+    title: 'GPT-5 supera i medici nei test diagnostici: lo studio di Stanford',
+    summary: 'Un paper su Nature Medicine mostra che GPT-5 raggiunge il 92% di accuratezza diagnostica su casi clinici complessi, superando la media dei medici generalisti.',
+    body: `Uno studio peer-reviewed pubblicato su Nature Medicine ha valutato le capacità diagnostiche di un modello linguistico di nuova generazione su un dataset di 5.000 casi clinici reali anonimizzati.
 
-<strong>I risultati</strong>
-GPT-5 ha raggiunto il 92,3% di accuratezza nelle diagnosi, contro l'84,7% dei medici generalisti e il 90,1% degli specialisti. La performance cala al 78% per le condizioni rare (malattie orfane).
+<strong>La metodologia</strong>
+I ricercatori hanno sottoposto gli stessi casi clinici a gruppi di medici generalisti, specialisti e al modello AI. I casi includevano patologie comuni, sindromi rare e presentazioni atipiche. Ogni diagnosi è stata confrontata con la diagnosi definitiva certificata.
 
-<strong>Le implicazioni</strong>
-Gli autori sottolineano che l'AI non sostituisce il medico, ma può essere uno strumento di triage e supporto decisionale potente, specialmente in aree con scarsità di specialisti.
+<strong>I risultati principali</strong>
+Il modello ha raggiunto il 92,3% di accuratezza complessiva, contro l'84,7% dei generalisti e il 90,1% degli specialisti. La performance cala al 78% per le malattie rare (malattie orfane), dove la scarsità di dati di addestramento pesa in modo evidente.
 
-<strong>Le critiche</strong>
-Alcuni ricercatori contestano il dataset: casi clinici scritti in inglese accademico potrebbero favorire un modello linguistico. La variabilità nella qualità delle cartelle cliniche reali è un fattore di rischio ignorato nello studio.`,
+<strong>Le implicazioni cliniche</strong>
+Gli autori sottolineano che il modello non sostituisce il medico: manca della capacità di esaminare fisicamente il paziente, raccogliere anamnesi contestuale e gestire la relazione terapeutica. Il valore è nel triage, nel supporto alla diagnosi differenziale e nella sintesi di documentazione clinica complessa.
+
+<strong>Le critiche metodologiche</strong>
+Alcuni ricercatori contestano che i casi clinici scritti in inglese accademico, già strutturati per essere leggibili, favoriscano artificialmente un modello linguistico. Le cartelle cliniche reali sono spesso frammentate, ambigue e multilingue — un contesto molto più difficile per l'AI.
+
+<strong>Il quadro regolatorio</strong>
+In Europa, l'AI Act classifica i sistemi AI in ambito medico come "ad alto rischio", richiedendo certificazione, supervisione umana e trasparenza sugli errori. L'adozione clinica sarà lenta e molto vigilata.`,
     source: 'Nature Medicine',
     url: 'https://www.nature.com/nm',
-    time: '6 ore fa'
+    time: '6 ore fa',
+    tags: ['AI', 'medicina', 'GPT-5', 'diagnostica', 'Stanford']
   },
   {
     id: 8,
     cat: 'ai',
-    title: 'UE: entra in vigore l\'AI Act, prime sanzioni possibili dal 2027',
-    summary: 'Il regolamento europeo sull\'intelligenza artificiale è ufficialmente in vigore. Le aziende hanno 24 mesi per adeguarsi; le violazioni rischiano multe fino al 7% del fatturato globale.',
+    title: 'AI Act UE: in vigore, prime sanzioni possibili dal 2027',
+    summary: 'Il regolamento europeo sull'intelligenza artificiale è ora pienamente operativo. Le aziende hanno 24 mesi per adeguarsi. Violazioni rischiamo multe fino al 7% del fatturato globale.',
     body: `L'AI Act europeo ha completato il suo iter legislativo ed è ora pienamente in vigore, segnando il primo sistema regolatorio globale completo sull'intelligenza artificiale.
 
 <strong>La struttura del regolamento</strong>
-Il testo adotta un approccio basato sul rischio: sistemi ad alto rischio (medici, giudiziari, infrastrutture critiche) devono soddisfare requisiti stringenti di trasparenza e supervisione umana. I sistemi di AI generale (come i grandi modelli linguistici) hanno obblighi di disclosure sulle capacità.
+L'AI Act adotta un approccio basato sul rischio, suddividendo i sistemi AI in quattro categorie: rischio inaccettabile (vietati), alto rischio (regolamentati), rischio limitato (obblighi di trasparenza) e rischio minimo (liberi). I grandi modelli linguistici rientrano in una categoria trasversale con obblighi specifici di disclosure.
 
 <strong>Chi è più colpito</strong>
-OpenAI, Google DeepMind, Anthropic e Meta dovranno registrare i propri modelli nel database EU entro 12 mesi. Le aziende che sviluppano sistemi di riconoscimento facciale in spazi pubblici sono de facto vietate.
+OpenAI, Google DeepMind, Anthropic e Meta dovranno registrare i propri modelli nel database europeo entro 12 mesi. I sistemi di riconoscimento biometrico in tempo reale in spazi pubblici sono de facto vietati, con eccezioni molto ristrette per le forze dell'ordine.
 
-<strong>Le critiche industriali</strong>
-Confindustria Digitale e DigitalEurope lamentano che la regolazione penalizzi le startup europee rispetto ai giganti americani e cinesi, già dotati di risorse per la compliance.`,
+<strong>Il meccanismo sanzionatorio</strong>
+Le violazioni delle norme sui sistemi ad alto rischio rischiano multe fino al 3% del fatturato globale. La commercializzazione di sistemi vietati arriva fino al 7%. Per le PMI e startup sono previste riduzioni significative.
+
+<strong>Le critiche dell'industria</strong>
+Confindustria Digitale e DigitalEurope lamentano che la regolazione penalizzi le startup europee rispetto ai giganti americani e cinesi, già dotati di strutture legali per la compliance. Il rischio è che l'innovazione si sposti fuori dall'UE.
+
+<strong>Il quadro globale</strong>
+Mentre l'Europa regola, gli USA hanno scelto un approccio prevalentemente volontario. La Cina ha emanato regole settoriali. L'AI Act europeo potrebbe diventare un modello globale — il cosiddetto effetto Bruxelles — o trasformarsi in un handicap competitivo.`,
     source: 'Politico EU',
     url: 'https://www.politico.eu',
-    time: '12 ore fa'
+    time: '12 ore fa',
+    tags: ['AI Act', 'UE', 'regolazione', 'OpenAI', 'compliance']
   },
   {
     id: 9,
-    cat: 'economia-tech',
-    title: 'NVIDIA supera Apple come azienda più capitalizzata al mondo',
-    summary: 'Per la prima volta nella storia, NVIDIA ha superato Apple per capitalizzazione di mercato, toccando i 3,4 trilioni di dollari. I chip H200 per AI continuano a generare una domanda senza precedenti.',
-    body: `NVIDIA ha chiuso la settimana con una capitalizzazione di 3,42 trilioni di dollari, superando per la prima volta Apple (3,38T) e diventando l'azienda più preziosa della storia dei mercati pubblici.
+    cat: 'ai',
+    title: 'Anthropic lancia Claude 4: ragionamento avanzato e memoria persistente',
+    summary: 'Anthropic presenta Claude 4 con capacità di ragionamento multi-step superiori e una nuova funzionalità di memoria episodica tra le sessioni. Disponibile subito per gli abbonati Pro.',
+    body: `Anthropic ha annunciato Claude 4, la sua più recente generazione di modelli, con miglioramenti significativi nelle capacità di ragionamento complesso e nella gestione della memoria a lungo termine.
 
-<strong>I driver della crescita</strong>
-La domanda di chip H200 e Blackwell Ultra per i data center AI è cresciuta del 340% anno su anno. I margini operativi di NVIDIA hanno raggiunto il 67%, un record assoluto per un'azienda hardware.
+<strong>Le novità principali</strong>
+Claude 4 introduce la "memoria episodica": con il consenso esplicito dell'utente, il modello può ricordare informazioni rilevanti tra sessioni diverse. I benchmark su matematica avanzata, coding e ragionamento logico mostrano un miglioramento stimato del 40% rispetto a Claude 3.5.
 
-<strong>Il contesto competitivo</strong>
-AMD sta guadagnando quote con i chip MI350, ma resta lontana. Intel è fuori dalla competizione nell'AI accelerated computing. Le Big Tech stanno sviluppando chip proprietari (TPU di Google, Trainium di Amazon) ma per ora integrano piuttosto che sostituiscono i prodotti NVIDIA.
+<strong>Ragionamento multi-step</strong>
+Il modello gestisce catene di ragionamento molto più lunghe senza "perdere il filo". In test interni su problemi di ricerca complessa, Claude 4 ha dimostrato una coerenza superiore su archi di ragionamento che richiedono decine di passaggi intermedi.
 
-<strong>I rischi</strong>
-Le restrizioni all'export verso la Cina pesano sul 15% del fatturato. Una potenziale bolla dei capex AI nei cloud provider è il principale rischio sistemico per i prossimi 18 mesi.`,
-    source: 'Bloomberg',
-    url: 'https://www.bloomberg.com',
-    time: '3 ore fa'
+<strong>Il posizionamento competitivo</strong>
+Antropic si posiziona esplicitamente come alternativa "safety-first" a GPT-5. Il modello è addestrato con tecniche di Constitutional AI di terza generazione, con un focus su riducibilità degli errori e interpretabilità delle risposte.
+
+<strong>Le partnership enterprise</strong>
+Le prime integrazioni annunciate includono Salesforce (workflow CRM), un contratto con il Dipartimento di Stato USA per analisi geopolitica automatizzata e una collaborazione con Siemens per applicazioni industriali.
+
+<strong>Il mercato dei modelli</strong>
+La competizione tra OpenAI, Anthropic, Google DeepMind e Meta si intensifica. I differenziali tecnici tra i modelli si riducono, spostando la competizione su prezzo, affidabilità, sicurezza e integrazioni verticali.`,
+    source: 'TechCrunch',
+    url: 'https://techcrunch.com',
+    time: '9 ore fa',
+    tags: ['Anthropic', 'Claude 4', 'LLM', 'AI', 'memoria']
   },
   {
     id: 10,
     cat: 'economia-tech',
-    title: 'BCE taglia i tassi al 2%: l\'inflazione scende sotto il target',
-    summary: 'La Banca Centrale Europea ha annunciato un quarto taglio consecutivo dei tassi di interesse, portandoli al 2%. L\'inflazione nell\'Eurozona è scesa all\'1,8%, sotto il target del 2%.',
-    body: `Il Consiglio Direttivo della BCE ha deciso un ulteriore taglio da 25 punti base, portando il tasso sui depositi al 2,0%, il livello più basso dal 2022.
+    title: 'NVIDIA supera Apple: prima volta come azienda più capitalizzata al mondo',
+    summary: 'Per la prima volta nella storia, NVIDIA raggiunge 3,4 trilioni di dollari di capitalizzazione, superando Apple. I chip per AI continuano a generare una domanda senza precedenti.',
+    body: `NVIDIA ha chiuso la settimana con una capitalizzazione di 3,42 trilioni di dollari, superando Apple (3,38T) e diventando l'azienda più preziosa mai quotata nei mercati pubblici.
 
-<strong>Le motivazioni</strong>
-L'inflazione core è scesa all'1,8%, sotto il target per la prima volta dal 2021. La crescita del PIL dell'Eurozona rimane debole (0,4% nel Q1 2026), con la Germania ancora in territorio di stagnazione.
+<strong>I driver della crescita</strong>
+La domanda di chip H200 e Blackwell Ultra per i data center AI è cresciuta del 340% anno su anno. I margini operativi di NVIDIA hanno raggiunto il 67%, un record assoluto per un'azienda hardware. Ogni grande cloud provider — Amazon, Microsoft, Google, Meta — sta moltiplicando gli ordini.
 
-<strong>Le implicazioni per mutui e prestiti</strong>
-I tassi sui mutui a tasso variabile scenderanno ulteriormente. L'Euribor 3 mesi è già al 2,1%. Per un mutuo medio italiano da 200.000€, il risparmio annuo è stimato in circa 800€.
+<strong>Il contesto competitivo</strong>
+AMD sta guadagnando quote di mercato con i chip MI350, ma resta lontana in termini di ecosistema software (CUDA è ancora lo standard de facto). Intel è uscita dalla competizione nell'AI accelerated computing. Le Big Tech stanno sviluppando chip proprietari (TPU di Google, Trainium di Amazon), ma per ora integrano piuttosto che sostituiscono NVIDIA.
 
-<strong>Il rischio di deflazione</strong>
-Alcuni membri del board hanno espresso cautela: con il tasso reale ora vicino allo zero, la BCE ha meno spazio di manovra in caso di nuovi shock. La prossima mossa dipenderà dai dati di maggio sull'occupazione.`,
-    source: 'Financial Times',
-    url: 'https://www.ft.com',
-    time: '7 ore fa'
+<strong>I rischi strutturali</strong>
+Le restrizioni all'export verso la Cina riguardano circa il 15% del fatturato. Una potenziale bolla dei capex AI nei cloud provider — che stanno investendo cifre enormi con ritorni ancora incerti — è il principale rischio sistemico per i prossimi 12-18 mesi.
+
+<strong>Le implicazioni geopolitiche</strong>
+I chip NVIDIA sono diventati un asset strategico: gli USA li usano come leva nelle relazioni con alleati e avversari, condizionando l'accesso alle tecnologie GPU più avanzate. Il controllo della supply chain dei semiconduttori è ormai questione di sicurezza nazionale.
+
+<strong>Prospettive</strong>
+Gli analisti di Wall Street sono divisi: il consensus è positivo sul breve termine, ma sul lungo termine il punto di equilibrio dipenderà da quanto la domanda AI si tradurrà in valore economico misurabile per i clienti enterprise.`,
+    source: 'Bloomberg',
+    url: 'https://www.bloomberg.com',
+    time: '3 ore fa',
+    tags: ['NVIDIA', 'Apple', 'capitalizzazione', 'AI', 'chip']
   },
   {
     id: 11,
-    cat: 'ai',
-    title: 'Anthropic lancia Claude 4: ragionamento avanzato e memoria persistente',
-    summary: 'Anthropic ha annunciato Claude 4, con capacità di ragionamento multi-step nettamente superiori e una nuova funzionalità di memoria persistente tra le sessioni. Disponibile subito per gli abbonati Pro.',
-    body: `Anthropic ha presentato Claude 4, la sua più recente generazione di modelli, con miglioramenti significativi nelle capacità di ragionamento complesso e nella gestione della memoria a lungo termine.
+    cat: 'economia-tech',
+    title: 'BCE taglia i tassi al 2%: inflazione sotto il target per la prima volta',
+    summary: 'La Banca Centrale Europea porta i tassi al 2%, il livello più basso dal 2022. L'inflazione scende all'1,8%, aprendo scenari nuovi per mutui, credito e crescita nell'Eurozona.',
+    body: `Il Consiglio Direttivo della BCE ha deciso un ulteriore taglio da 25 punti base, portando il tasso sui depositi al 2,0%. È la quarta riduzione consecutiva di questo ciclo.
 
-<strong>Le nuove funzionalità</strong>
-Claude 4 introduce la «memoria episodica»: il modello può ricordare informazioni tra sessioni diverse, con il consenso dell'utente. Il benchmark su problemi di matematica avanzata e coding mostra un miglioramento del 40% rispetto a Claude 3.5.
+<strong>Il contesto macro</strong>
+L'inflazione core nell'Eurozona è scesa all'1,8%, sotto il target del 2% per la prima volta dal 2021. La crescita del PIL dell'area euro rimane debole: 0,4% nel Q1 2026, con la Germania ancora in territorio di stagnazione. Il mercato del lavoro resta solido, con la disoccupazione al 6,2%.
 
-<strong>Posizionamento competitivo</strong>
-Antropic si posiziona esplicitamente come alternativa «safety-first» a GPT-5. Il modello è stato addestrato con tecniche di Constitutional AI di terza generazione. Il pricing rimane comparabile a quello di OpenAI.
+<strong>Effetti su mutui e credito</strong>
+I tassi sui mutui a tasso variabile scenderanno nelle prossime settimane. L'Euribor 3 mesi è già al 2,1%. Per un mutuo medio italiano da 200.000 euro, la riduzione mensile della rata è stimata in circa 65 euro, con un risparmio annuo di circa 800 euro rispetto al picco del 2023.
 
-<strong>Le applicazioni enterprise</strong>
-Le prime partnership annunciate includono Salesforce, per l'integrazione nei workflow CRM, e un contratto con il Dipartimento di Stato USA per analisi geopolitica automatizzata.`,
-    source: 'TechCrunch',
-    url: 'https://techcrunch.com',
-    time: '9 ore fa'
+<strong>Implicazioni per le imprese tech</strong>
+Il costo del capitale più basso facilita il finanziamento dei data center e dei progetti di espansione AI in Europa. Le startup tech europee potrebbero trovare condizioni di funding più favorevoli nel secondo semestre 2026.
+
+<strong>Il rischio di deflazione</strong>
+Alcuni membri del board hanno espresso cautela: con il tasso reale vicino allo zero, la BCE ha meno spazio di manovra in caso di nuovi shock esogeni — energetici, geopolitici o finanziari. La prossima mossa dipenderà dai dati di occupazione e inflazione di maggio.
+
+<strong>La risposta dei mercati</strong>
+I titoli bancari europei hanno perso terreno, poiché tassi più bassi comprimono i margini di interesse. I BTP italiani si sono apprezzati con un calo dello spread verso i 110 punti base.`,
+    source: 'Financial Times',
+    url: 'https://www.ft.com',
+    time: '7 ore fa',
+    tags: ['BCE', 'tassi', 'inflazione', 'mutui', 'Eurozona']
   },
   {
     id: 12,
-    cat: 'geopolitica',
-    title: 'Trump e Xi a Mar-a-Lago: accordo parziale sui dazi',
-    summary: 'Il summit tra il presidente USA Donald Trump e il leader cinese Xi Jinping si è concluso con un accordo parziale che sospende i dazi aggiuntivi per 90 giorni, aprendo a negoziati sul tech.',
-    body: `Il vertice bilaterale tra Trump e Xi a Mar-a-Lago ha prodotto un documento congiunto di intenti che prevede una pausa di 90 giorni sui dazi aggiuntivi introdotti nel 2025.
+    cat: 'economia-tech',
+    title: 'OpenAI lancia i modelli o3: ragionamento scientifico oltre i benchmark umani',
+    summary: 'OpenAI presenta la famiglia o3, progettata per il ragionamento scientifico e matematico avanzato. In alcuni test supera i migliori esperti umani. Il prezzo per query è molto più alto dei modelli standard.',
+    body: `OpenAI ha annunciato la famiglia di modelli o3, successori di o1, progettati specificamente per compiti che richiedono ragionamento multi-step profondo in matematica, fisica, chimica e programmazione.
 
-<strong>I termini dell'intesa</strong>
-Gli USA sospendono i dazi aggiuntivi del 15% sulle importazioni cinesi di beni di consumo. La Cina si impegna ad aumentare gli acquisti di prodotti agricoli americani per 50 miliardi di dollari nei prossimi due anni.
+<strong>I risultati nei benchmark</strong>
+Sui problemi di matematica olimpica (AIME), o3 risolve oltre il 96% dei quesiti contro il 69% di o1. Su SWE-Bench (debug di codice reale), raggiunge il 72%. Sul benchmark scientifico GPQA-Diamond, supera la performance media di esperti PhD nel loro dominio.
 
-<strong>I nodi irrisolti</strong>
-Le restrizioni tech restano intatte: NVIDIA, ASML e altri fornitori di semiconduttori avanzati non possono vendere a Cina. Il dossier Taiwan non è stato discusso formalmente.
+<strong>Come funziona</strong>
+I modelli o3 usano una tecnica di "ragionamento computazionale": prima di rispondere, il modello genera una catena di pensiero interna (non visibile all'utente) che può durare secondi o minuti a seconda della difficoltà. Più "tempo di pensiero" si concede, più alta è la performance — a scapito della velocità e del costo.
 
-<strong>Le reazioni dei mercati</strong>
-Wall Street ha risposto con un rialzo dell'1,8% sull'S&P 500. L'euro si è rafforzato sul dollaro. Gli analisti avvertono che i 90 giorni sono solo un respiro, non una risoluzione strutturale.`,
-    source: 'Wall Street Journal',
-    url: 'https://www.wsj.com',
-    time: '5 ore fa'
+<strong>Il trade-off costo/prestazione</strong>
+Il costo per query di o3 è significativamente più alto dei modelli GPT-4o. OpenAI ha introdotto un parametro "compute budget" che permette agli sviluppatori di bilanciare costo e qualità in base al caso d'uso.
+
+<strong>Le applicazioni più promettenti</strong>
+Scoperta scientifica assistita, verifica formale di codice, analisi giuridica complessa, progettazione ingegneristica e supporto alla ricerca medica sono i settori dove il modello mostra il maggior potenziale trasformativo.
+
+<strong>Le preoccupazioni</strong>
+Il gap crescente tra capacità del modello e possibilità di verifica umana degli output preoccupa i ricercatori di sicurezza. Quando un modello supera i migliori esperti umani in un dominio, diventa più difficile capire se sta "ragionando" davvero o producendo output plausibili.`,
+    source: 'The Verge',
+    url: 'https://www.theverge.com',
+    time: '11 ore fa',
+    tags: ['OpenAI', 'o3', 'ragionamento', 'benchmark', 'matematica']
   }
 ];

@@ -1,58 +1,38 @@
 # Il Punto — WebApp Notizie
 
-Una webapp stile Column per leggere i riassunti delle notizie più importanti su:
-- 🇮🇹 Politica italiana
-- 🌍 Geopolitica mondiale
-- ⚔️ Conflitti internazionali
-- 🤖 AI & Tecnologia
-- 📈 Economia collegata alla tecnologia
+Webapp stile Column per seguire politica italiana, geopolitica, conflitti, AI ed economia tech.
 
-## Caratteristiche
-- Zero pubblicità, zero paywall
-- Hero section con la top story
-- Grid di card selezionabili con modale di approfondimento
-- Filtro per categoria
-- Dark mode
-- Design responsive
+## Funzionalità v2
+- **Preferiti con stellina**: clicca ★ su qualsiasi notizia (card, hero, modal) per salvarla. Stellina gialla = salvata. I preferiti persistono in `localStorage`.
+- **Sezione Preferiti** filtrabile dalla navbar.
+- **Notizie approfondite**: ogni articolo ha 5-6 sezioni con analisi estesa.
+- **Tag per notizia**: etichette tematiche visibili nelle card.
+- **Countdown refresh** in header: aggiornamento automatico ogni ora con timer visibile.
+- **Refresh manuale** con pulsante ↻.
+- **Fonti RSS multiple** elencate in `news.js` → `RSS_SOURCES` (12 fonti).
+- **Dark mode** persistente.
 
-## Struttura
-```
-├── index.html   # Struttura HTML
-├── style.css    # Tutti gli stili (dark mode inclusa)
-├── news.js      # Dati delle notizie (aggiornabili manualmente o via RSS)
-└── app.js       # Logica dell'app
-```
+## Fonti RSS configurate
+ANSA, Corriere della Sera, Il Sole 24 Ore, Reuters, BBC World, AP News, Al Jazeera, The Verge, Wired IT, TechCrunch, Bloomberg, Financial Times.
 
-## Come aggiornare le notizie
-Modifica `news.js` aggiungendo oggetti al array `NEWS`:
+## Aggiornamento automatico delle notizie
+GitHub Pages è statico: per un vero fetch automatico dai feed RSS serve un'opzione server-side.
+Le due strade più semplici:
 
-```js
-{
-  id: 13,
-  cat: 'ai',  // 'politica-italiana' | 'geopolitica' | 'conflitti' | 'ai' | 'economia-tech'
-  title: 'Titolo della notizia',
-  summary: 'Breve riassunto (2-3 righe) mostrato nella card.',
-  body: `Testo esteso mostrato nel modale.
+### 1. GitHub Actions (consigliata)
+Un workflow `.github/workflows/fetch_news.yml` che ogni ora:
+1. Scarica i feed RSS con Python (`feedparser`)
+2. Rigenera `news.js` con i nuovi articoli
+3. Fa il commit e pusha su `main`
+Puoi chiedermi di crearlo.
 
-<strong>Sezione</strong>
-Contenuto della sezione...`,
-  source: 'Nome fonte',
-  url: 'https://url-fonte.com',
-  time: '2 ore fa'
-}
-```
+### 2. Backend proxy
+Un piccolo server Node/Python che espone un endpoint `/api/news` che aggrega i feed e risolve i problemi CORS.
 
 ## Deploy
-Basta un server statico qualsiasi:
 ```bash
-# Python
+git clone https://github.com/francescoeramo/webAppNotizie
+cd webAppNotizie
 python3 -m http.server 8080
-
-# Node
-npx serve .
-
-# O apri direttamente index.html nel browser
 ```
-
-## GitHub Pages
-Vai su Settings → Pages → Branch: main → / (root) → Save.
+Oppure attiva GitHub Pages: Settings → Pages → Branch main → / (root).
