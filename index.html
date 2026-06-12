@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notizie — Il Punto</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">Il Punto</div>
+      <nav class="nav-cats">
+        <button class="cat-btn active" data-cat="all">Tutto</button>
+        <button class="cat-btn" data-cat="politica-italiana">Politica IT</button>
+        <button class="cat-btn" data-cat="geopolitica">Geopolitica</button>
+        <button class="cat-btn" data-cat="conflitti">Conflitti</button>
+        <button class="cat-btn" data-cat="ai">AI & Tech</button>
+        <button class="cat-btn" data-cat="economia-tech">Economia</button>
+      </nav>
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero-section" id="heroSection">
+      <div class="hero-label">Top Story</div>
+      <h1 class="hero-title" id="heroTitle"></h1>
+      <p class="hero-summary" id="heroSummary"></p>
+      <div class="hero-meta">
+        <span class="hero-cat" id="heroCat"></span>
+        <span class="hero-time" id="heroTime"></span>
+      </div>
+      <button class="hero-read-btn" id="heroReadBtn">Leggi di più</button>
+    </section>
+
+    <section class="news-grid-section">
+      <div class="news-grid" id="newsGrid"></div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <button class="modal-close" id="modalClose">✕</button>
+      <div class="modal-cat" id="modalCat"></div>
+      <h2 class="modal-title" id="modalTitle"></h2>
+      <div class="modal-meta">
+        <span id="modalSource"></span>
+        <span id="modalTime"></span>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+      <a class="modal-link" id="modalLink" href="#" target="_blank" rel="noopener">Leggi l'articolo originale →</a>
+    </div>
+  </div>
+
+  <script src="news.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
