@@ -1,38 +1,41 @@
-# Il Punto — WebApp Notizie
+# Il Punto — Notizie
 
-Webapp stile Column per seguire politica italiana, geopolitica, conflitti, AI ed economia tech.
+**Il Punto** è una web app di news aggregation personalizzata, accessibile all’indirizzo:
 
-## Funzionalità v2
-- **Preferiti con stellina**: clicca ★ su qualsiasi notizia (card, hero, modal) per salvarla. Stellina gialla = salvata. I preferiti persistono in `localStorage`.
-- **Sezione Preferiti** filtrabile dalla navbar.
-- **Notizie approfondite**: ogni articolo ha 5-6 sezioni con analisi estesa.
-- **Tag per notizia**: etichette tematiche visibili nelle card.
-- **Countdown refresh** in header: aggiornamento automatico ogni ora con timer visibile.
-- **Refresh manuale** con pulsante ↻.
-- **Fonti RSS multiple** elencate in `news.js` → `RSS_SOURCES` (12 fonti).
-- **Dark mode** persistente.
+## 🔗 [francescoeramo.github.io/webAppNotizie](https://francescoeramo.github.io/webAppNotizie)
 
-## Fonti RSS configurate
-ANSA, Corriere della Sera, Il Sole 24 Ore, Reuters, BBC World, AP News, Al Jazeera, The Verge, Wired IT, TechCrunch, Bloomberg, Financial Times.
+---
 
-## Aggiornamento automatico delle notizie
-GitHub Pages è statico: per un vero fetch automatico dai feed RSS serve un'opzione server-side.
-Le due strade più semplici:
+## Cosa fa
 
-### 1. GitHub Actions (consigliata)
-Un workflow `.github/workflows/fetch_news.yml` che ogni ora:
-1. Scarica i feed RSS con Python (`feedparser`)
-2. Rigenera `news.js` con i nuovi articoli
-3. Fa il commit e pusha su `main`
-Puoi chiedermi di crearlo.
+Aggrega automaticamente le notizie più rilevanti delle ultime 48 ore da oltre 20 fonti RSS italiane e internazionali, organizzate in cinque categorie:
 
-### 2. Backend proxy
-Un piccolo server Node/Python che espone un endpoint `/api/news` che aggrega i feed e risolve i problemi CORS.
+- **Politica IT** — ANSA, Corriere, Il Post, Sky TG24, AGI, Pagella Politica, Facta, Valigia Blu
+- **Geopolitica** — BBC World, AP, The Economist, Limes, Internazionale, El País
+- **Conflitti** — Reuters, Al Jazeera, AP Conflitti
+- **AI & Tech** — The Verge, Wired IT, TechCrunch, Il Post Tech
+- **Economia** — Il Sole 24 Ore, Bloomberg, Financial Times, The Economist
 
-## Deploy
-```bash
-git clone https://github.com/francescoeramo/webAppNotizie
-cd webAppNotizie
-python3 -m http.server 8080
-```
-Oppure attiva GitHub Pages: Settings → Pages → Branch main → / (root).
+---
+
+## Funzionalità
+
+- 🗲️ **Categorie** con filtro rapido dalla barra di navigazione
+- 🌟 **Top Story** in evidenza come banner principale
+- ★ **Preferiti** — salva le notizie che vuoi tenere
+- ⏰ **Leggi dopo** — aggiungi notizie alla coda di lettura, visibile come sezione dedicata
+- 🌐 **Traduzione automatica** — traduce in italiano articoli in inglese o spagnolo
+- ✔ **Già letta** — le notizie aperte vengono marcate visivamente
+- 🔄 **Aggiornamento orario** automatico tramite GitHub Actions (notizie max 48h)
+- 🌙 **Dark mode** con toggle
+- 📱 **Responsive** — ottimizzato per mobile e desktop
+
+---
+
+## Aggiornamento notizie
+
+Le notizie vengono rigenerate ogni ora da una **GitHub Action** che scarica i feed RSS, filtra gli articoli più recenti e rilevanti e aggiorna automaticamente `news.js`. Premere il pulsante ↻ nella barra di navigazione ricarica la pagina con le notizie più fresche e azzera lo storico delle notizie già lette.
+
+---
+
+*Progetto personale — Francesco Eramo*

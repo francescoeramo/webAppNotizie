@@ -203,13 +203,16 @@ body {
 .cat-ai .card-cat-badge                { color: var(--cat-ai); }
 .cat-economia-tech .card-cat-badge     { color: var(--cat-economia); }
 
+/* Il badge read è nascosto di default; il JS lo mostra solo se la notizia è letta */
 .card-read-badge {
-  display: inline-flex; align-items: center; justify-content: center;
+  display: none;
+  align-items: center; justify-content: center;
   width: 18px; height: 18px;
   background: var(--read-color); color: #fff;
   border-radius: 50%; font-size: .65rem; font-weight: 700;
   flex-shrink: 0; line-height: 1;
 }
+
 .card-title {
   font-family: var(--font-head); font-size: 1rem;
   font-weight: 700; line-height: 1.35; margin-bottom: 8px; transition: color .2s;
@@ -235,7 +238,7 @@ body {
 .card-source { font-weight: 600; }
 .card-time { color: var(--text-muted); }
 
-/* Pulsante "Leggi dopo" sulla card */
+/* Pulsante Leggi dopo sulla card */
 .card-later-btn {
   background: none;
   border: 1.5px solid var(--border);
@@ -243,8 +246,7 @@ body {
   width: 26px; height: 26px;
   display: inline-flex; align-items: center; justify-content: center;
   font-size: .8rem; cursor: pointer; color: var(--text-muted);
-  transition: all .2s; padding: 0; flex-shrink: 0;
-  line-height: 1;
+  transition: all .2s; padding: 0; flex-shrink: 0; line-height: 1;
 }
 .card-later-btn:hover { border-color: var(--later-color); color: var(--later-color); transform: scale(1.15); }
 .card-later-btn.later-on { background: var(--later-color); border-color: var(--later-color); color: #fff; }
