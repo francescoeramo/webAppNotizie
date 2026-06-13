@@ -11,6 +11,7 @@
     'leggi-dopo':        '\u23f0 Leggi dopo'
   };
 
+  // Template di espansione IN ITALIANO (usati solo quando il body originale è troppo corto)
   var EXPANSION_TEMPLATES = [
     function(n) {
       return 'La notizia riportata da ' + n.source + ' ha attirato l\'attenzione dell\'opinione pubblica. ' +
@@ -30,16 +31,56 @@
     }
   ];
 
+  // Template di espansione IN INGLESE (usati per tradurre notizie inglesi corte)
+  var EXPANSION_TEMPLATES_EN = [
+    function(n) {
+      return 'This story reported by ' + n.source + ' has drawn significant public attention. ' +
+        'According to the latest available information, ' + (n.summary || '') + ' ' +
+        'Full details are still being verified by editorial teams across major newsrooms. ' +
+        'The situation is being monitored in real time by leading international news agencies. ' +
+        'Further updates are expected in the coming hours as new elements emerge. ' +
+        'For the complete article with all background details, please refer to the original source.';
+    },
+    function(n) {
+      return 'Source ' + n.source + ' reports an update on this significant development. ' +
+        (n.summary || '') + ' ' +
+        'The context surrounding this news is rapidly evolving. ' +
+        'Relevant institutions are closely monitoring the situation. ' +
+        'Experts in the field highlight the importance of this development in the current global landscape. ' +
+        'Follow updates on our platform to stay informed in real time.';
+    }
+  ];
+
+  // Template di espansione IN SPAGNOLO
+  var EXPANSION_TEMPLATES_ES = [
+    function(n) {
+      return 'Esta noticia reportada por ' + n.source + ' ha captado la atenci\u00f3n p\u00fablica. ' +
+        'Seg\u00fan la informaci\u00f3n disponible, ' + (n.summary || '') + ' ' +
+        'Los detalles completos est\u00e1n siendo verificados por los equipos editoriales. ' +
+        'La situaci\u00f3n est\u00e1 siendo monitoreada en tiempo real por las principales agencias de noticias. ' +
+        'Se esperan m\u00e1s actualizaciones en las pr\u00f3ximas horas. ' +
+        'Para el art\u00edculo completo, consulte la fuente original.';
+    },
+    function(n) {
+      return 'La fuente ' + n.source + ' informa sobre este importante tema. ' +
+        (n.summary || '') + ' ' +
+        'El contexto de esta noticia est\u00e1 en r\u00e1pida evoluci\u00f3n. ' +
+        'Las instituciones competentes siguen de cerca la situaci\u00f3n. ' +
+        'Los expertos subrayan la importancia de este desarrollo. ' +
+        'Siga las actualizaciones en nuestra plataforma para mantenerse informado.';
+    }
+  ];
+
   var FAV_KEY    = 'ilPuntoFavorites';
   var LATER_KEY  = 'ilPuntoReadLater';
   var READ_KEY   = 'ilPuntoRead';
   var THEME_KEY  = 'ilPuntoTheme';
   var REFRESH_MS = 60 * 60 * 1000;
 
-  var activeCategory   = 'all';
-  var currentModalNews = null;
-  var isTranslated     = false;
-  var refreshCountdown = REFRESH_MS / 1000;
+  var activeCategory    = 'all';
+  var currentModalNews  = null;
+  var isTranslated      = false;
+  var refreshCountdown  = REFRESH_MS / 1000;
   var countdownInterval = null;
 
   var favs  = new Set(JSON.parse(localStorage.getItem(FAV_KEY)   || '[]'));
@@ -56,85 +97,74 @@
 
   function toggleFav(id) {
     if (favs.has(id)) favs.delete(id); else favs.add(id);
-    saveFavs();
-    updateModalButtons();
-    // Aggiorna solo la card coinvolta senza ridisegnare tutto
-    refreshCard(id);
+    saveFavs(); updateModalButtons(); refreshCard(id);
   }
   function toggleLater(id) {
     if (later.has(id)) later.delete(id); else later.add(id);
-    saveLater();
-    updateModalButtons();
-    refreshCard(id);
+    saveLater(); updateModalButtons(); refreshCard(id);
   }
   function markRead(id) {
     if (!read.has(id)) { read.add(id); saveRead(); }
   }
 
-  // Aggiorna una singola card già nel DOM (evita re-render completo mentre il modal è aperto)
   function refreshCard(id) {
-    // Se siamo in leggi-dopo e togliamo la notizia, la card sparisce
     if (activeCategory === 'leggi-dopo' && !isLater(id)) { renderAll(); return; }
     if (activeCategory === 'preferiti'  && !isFav(id))   { renderAll(); return; }
-    // Altrimenti aggiorna solo badge e classe
     var cards = grid.querySelectorAll('.news-card');
     cards.forEach(function(card) {
       if (card._newsId === id) {
         card.classList.toggle('card-read', isRead(id));
-        var badge = card.querySelector('.card-read-badge');
-        if (isRead(id) && !badge) {
-          var topline = card.querySelector('.card-topline');
-          if (topline) {
-            var sp = document.createElement('span');
-            sp.className = 'card-read-badge';
-            sp.title = 'Gi\u00e0 letta';
-            sp.textContent = '\u2714';
-            topline.appendChild(sp);
-          }
-        }
       }
     });
   }
 
-  // --- Espansione body corto (usata SOLO per la visualizzazione, NON per il rilevamento lingua) ---
-  function expandBody(news) {
-    var body = (news.body || '').trim();
-    if (body.length < 300) {
-      var tmpl = EXPANSION_TEMPLATES[news.id % EXPANSION_TEMPLATES.length];
-      body = tmpl(news);
-    }
-    return body;
+  // --- Espansione body per la VISUALIZZAZIONE (con template nella lingua corretta) ---
+  // lang: 'it' | 'en' | 'es'  — determina quale template usare
+  function expandBodyForLang(news, lang) {
+    var body = (news.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (body.length >= 200) return body; // body originale sufficientemente lungo
+    var idx = news.id % 2;
+    if (lang === 'en') return EXPANSION_TEMPLATES_EN[idx](news);
+    if (lang === 'es') return EXPANSION_TEMPLATES_ES[idx](news);
+    // italiano (default per la visualizzazione normale)
+    return EXPANSION_TEMPLATES[idx](news);
   }
 
-  // --- Rilevamento lingua sul testo ORIGINALE (title + body grezzo, prima dell'espansione) ---
+  // Versione italiana per il modal (visualizzazione normale)
+  function expandBodyIT(news) {
+    return expandBodyForLang(news, 'it');
+  }
+
+  // --- Rilevamento lingua sul testo ORIGINALE ---
   var IT_RE = /\b(il|la|le|gli|dei|che|con|per|una|del|della|delle|degli|nel|nella|nelle|negli|anche|dopo|prima|mentre|quando|per\u00f2|inoltre|quindi|tuttavia|secondo|governo|stato|paese|sono|questa|questo|essere|aveva|hanno|viene|venire|loro|come|dove|tutto|tutti|tutte|ogni|molto|anni|anno|parte|caso|modo|volta|sempre|ancora|pi\u00f9|gi\u00e0|solo|fare|fatto|dire|detto|nuovo|grande|primo|italiano|italiana|italiani|italiane|nazionale|ministro|parlamento|regione|comune|impresa|azienda|lavoro|economia|politica|guerra|pace|accordo|legge|decreto|riforma|elezioni|partito|coalizione|sinistra|destra|centro|euro|milioni|miliardi)\b/gi;
-  var ES_RE = /\b(el|los|las|del|de|en|con|por|para|que|una|un|es|son|ha|han|ser|estar|tiene|tienen|este|esta|estos|estas|pero|como|cuando|donde|todo|todos|todas|sobre|entre|cada|muy|bien|m\u00e1s|tambi\u00e9n|a\u00f1o|pa\u00eds|gobierno|partido|espa\u00f1a|madrid|barcelona|seg\u00fan|tras|durante|fue|han|sus|entre|siendo)\b/gi;
-  var EN_RE = /\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|has|him|his|how|its|may|new|now|old|see|two|way|who|said|have|that|from|they|this|will|with|been|into|more|also|when|your|time|than|then|them|some|would|could|about|which|their|there|these|those|where|while|being|after|under|since|before|between|through|during|however|because|therefore|government|minister|president|country|national|political|military|economic|according|reported|official|sources|amid|push|deal|talks|says|amid|while|after|over|amid|ceasefire|frozen|unlock)\b/gi;
+  var ES_RE = /\b(el|los|las|del|de|en|con|por|para|que|una|un|es|son|ha|han|ser|estar|tiene|tienen|este|esta|estos|estas|pero|como|cuando|donde|todo|todos|todas|sobre|entre|cada|muy|bien|m\u00e1s|tambi\u00e9n|a\u00f1o|pa\u00eds|gobierno|partido|espa\u00f1a|madrid|barcelona|seg\u00fan|tras|durante|fue|sus|siendo|su|sus|al|ni|o\u00f3)\b/gi;
+  var EN_RE = /\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|has|him|his|how|its|may|new|now|old|see|two|way|who|said|have|that|from|they|this|will|with|been|into|more|also|when|your|time|than|then|them|some|would|could|about|which|their|there|these|those|where|while|being|after|under|since|before|between|through|during|however|because|therefore|government|minister|president|country|national|political|military|economic|according|reported|official|sources|amid|push|deal|talks|says|ceasefire|frozen|unlock|why|wrong|loathe|leaders|scorn|mistake|strongmen)\b/gi;
+
+  var IT_SOURCES = ['ansa','corriere','repubblica','stampa','sole 24','wired it','sky tg','agi ','internazionale','limes','il post','valigia','pagella','facta','fanpage','open '];
+  var ES_SOURCES = ['pa\u00eds','pais','el mundo','abc ','vanguardia','expansi\u00f3n','expansion','cinco d\u00edas','lavanguardia'];
 
   function detectLangRaw(news) {
-    // Usa SOLO il testo originale: titolo + body grezzo (non espanso)
-    var raw = (news.title + ' ' + (news.body || '') + ' ' + (news.summary || '')).slice(0, 1500);
+    var raw = ((news.title || '') + ' ' + (news.body || '') + ' ' + (news.summary || '')).slice(0, 1500);
     var itC = (raw.match(IT_RE) || []).length;
     var esC = (raw.match(ES_RE) || []).length;
     var enC = (raw.match(EN_RE) || []).length;
     var tot = itC + esC + enC;
-    if (tot === 0) {
-      // Nessuna parola riconosciuta: fallback su source
+
+    if (tot < 5) {
+      // Testo troppo corto: usa la fonte come fallback
       var src = (news.source || '').toLowerCase();
-      if (src.indexOf('ansa') !== -1 || src.indexOf('corriere') !== -1 ||
-          src.indexOf('post') !== -1 || src.indexOf('valigia') !== -1 ||
-          src.indexOf('pagella') !== -1 || src.indexOf('facta') !== -1 ||
-          src.indexOf('sole') !== -1 || src.indexOf('wired it') !== -1 ||
-          src.indexOf('sky tg') !== -1 || src.indexOf('agi') !== -1 ||
-          src.indexOf('internazionale') !== -1 || src.indexOf('limes') !== -1) {
-        return 'it';
+      for (var i = 0; i < IT_SOURCES.length; i++) {
+        if (src.indexOf(IT_SOURCES[i]) !== -1) return 'it';
       }
-      if (src.indexOf('pa\u00eds') !== -1 || src.indexOf('pais') !== -1) return 'es';
+      for (var j = 0; j < ES_SOURCES.length; j++) {
+        if (src.indexOf(ES_SOURCES[j]) !== -1) return 'es';
+      }
       return 'en';
     }
+
     var itRatio = itC / tot;
     if (itRatio >= 0.35) return 'it';
-    if (esC > enC * 1.2) return 'es';
+    if (esC > enC * 1.2 && esC > 3) return 'es';
     return 'en';
   }
 
@@ -144,10 +174,10 @@
     var chunks = [];
     var rem = text;
     while (rem.length > 0) {
-      var cut = Math.min(450, rem.length);
-      if (rem.length > 450) {
-        var ld = rem.lastIndexOf('.', 450);
-        if (ld > 200) cut = ld + 1;
+      var cut = Math.min(480, rem.length);
+      if (rem.length > 480) {
+        var ld = rem.lastIndexOf('. ', 480);
+        if (ld > 150) cut = ld + 2;
       }
       chunks.push(rem.slice(0, cut).trim());
       rem = rem.slice(cut).trim();
@@ -168,12 +198,12 @@
   // --- Formattazione HTML body ---
   function formatBody(raw) {
     var html = (raw || '')
-      .replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&quot;/g, '"')
-      .replace(/&#8217;/g, '\u2019').replace(/&#8216;/g, '\u2018')
-      .replace(/&#8220;/g, '\u201c').replace(/&#8221;/g, '\u201d')
-      .replace(/&#160;/g, ' ').replace(/&#8230;/g, '\u2026')
-      .replace(/<img[^>]*>/gi, '').replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
-      .replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      .replace(/&amp;/g,'&').replace(/&#039;/g,"'").replace(/&quot;/g,'"')
+      .replace(/&#8217;/g,'\u2019').replace(/&#8216;/g,'\u2018')
+      .replace(/&#8220;/g,'\u201c').replace(/&#8221;/g,'\u201d')
+      .replace(/&#160;/g,' ').replace(/&#8230;/g,'\u2026')
+      .replace(/<img[^>]*>/gi,'').replace(/<a[^>]*>(.*?)<\/a>/gi,'$1')
+      .replace(/<[^>]+>/g,' ').replace(/\s{2,}/g,' ').trim();
     var paras;
     if (html.indexOf('\n\n') !== -1) {
       paras = html.split(/\n\n+/);
@@ -190,9 +220,9 @@
       }
       if (r) paras.push(r);
     }
-    return paras.map(function(p) { return p.trim(); })
-      .filter(function(p) { return p.length > 0; })
-      .map(function(p) { return '<p>' + p + '</p>'; }).join('');
+    return paras.map(function(p){return p.trim();})
+      .filter(function(p){return p.length > 0;})
+      .map(function(p){return '<p>'+p+'</p>';}).join('');
   }
 
   // --- DOM refs ---
@@ -234,10 +264,8 @@
     themeToggle.textContent = t === 'dark' ? '\u2600\ufe0f' : '\ud83c\udf19';
   }
 
-  // --- Menu mobile ---
   menuToggle.addEventListener('click', function() { mobileNav.classList.toggle('open'); });
 
-  // --- Filtri categoria ---
   allCatBtns.forEach(function(btn) {
     btn.addEventListener('click', function() {
       activeCategory = btn.dataset.cat;
@@ -251,7 +279,6 @@
     });
   });
 
-  // --- Refresh ---
   refreshBtn.addEventListener('click', function() { resetCountdown(); location.reload(); });
   function formatCountdown(sec) {
     var m = Math.floor(sec / 60);
@@ -268,7 +295,6 @@
   }
   resetCountdown();
 
-  // --- Aggiorna stato pulsanti modal ---
   function updateModalButtons() {
     if (!currentModalNews) return;
     var id = currentModalNews.id;
@@ -280,7 +306,6 @@
     modalLaterBtn.title = lOn ? 'Rimuovi da Leggi dopo' : 'Aggiungi a Leggi dopo';
   }
 
-  // --- Apri modal ---
   function openModal(news) {
     currentModalNews = news;
     isTranslated = false;
@@ -293,24 +318,22 @@
     modalTime.textContent   = '\ud83d\udd50 ' + news.time;
     modalLink.href          = news.url;
 
-    // Mostra il body espanso nel modal
-    var bodyDisplay = expandBody(news);
-    modalBody.innerHTML = formatBody(bodyDisplay);
-
-    // IMPORTANTE: rileva la lingua sul testo ORIGINALE (news.title + news.body + news.summary)
-    // prima che venga aggiunto il wrapper italiano dell'expansion template
+    // Rileva lingua sul testo ORIGINALE
     var lang = detectLangRaw(news);
+    translateBtn._sl = lang;
+
+    // Visualizza il body espanso nella lingua originale (non tradotta)
+    var displayBody = expandBodyForLang(news, lang);
+    modalBody.innerHTML = formatBody(displayBody);
+
     if (lang !== 'it') {
       translateBtn.style.display = '';
       translateBtn.textContent = '\ud83c\udf10 Traduci in italiano';
       translateBtn.disabled = false;
-      translateBtn._sl = lang;
     } else {
       translateBtn.style.display = 'none';
-      translateBtn._sl = 'it';
     }
 
-    // Fonti correlate
     var rel = (typeof RSS_SOURCES !== 'undefined')
       ? RSS_SOURCES.filter(function(s) { return s.cat === news.cat; }) : [];
     if (rel.length) {
@@ -321,11 +344,10 @@
       modalSourcesBlock.style.display = 'none';
     }
 
-    // Collega i pulsanti
     modalFavBtn.onclick   = function(e) { e.stopPropagation(); toggleFav(news.id); };
     modalLaterBtn.onclick = function(e) { e.stopPropagation(); toggleLater(news.id); };
-
     updateModalButtons();
+
     modalOverlay.classList.add('open');
     document.body.style.overflow = 'hidden';
     modalClose.focus();
@@ -334,19 +356,26 @@
   // --- Traduzione ---
   translateBtn.addEventListener('click', function() {
     if (!currentModalNews) return;
+    var news = currentModalNews;
+    var sl = translateBtn._sl || 'en';
+
     if (isTranslated) {
-      modalBody.innerHTML = formatBody(expandBody(currentModalNews));
+      // Torna all'originale (nella lingua originale)
+      var origBody = expandBodyForLang(news, sl);
+      modalBody.innerHTML = formatBody(origBody);
       translateBtn.textContent = '\ud83c\udf10 Traduci in italiano';
       isTranslated = false;
       return;
     }
+
     translateBtn.textContent = '\u23f3 Traduzione in corso\u2026';
     translateBtn.disabled = true;
-    // Traduci il body originale (non il wrapper italiano)
-    var rawText = (currentModalNews.body || currentModalNews.summary || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!rawText) rawText = currentModalNews.summary || '';
-    translateText(rawText, translateBtn._sl || 'en').then(function(t) {
-      modalBody.innerHTML = formatBody(t);
+
+    // Testo da tradurre: titolo + body espanso nella lingua originale
+    var textToTranslate = news.title + '. ' + expandBodyForLang(news, sl);
+
+    translateText(textToTranslate, sl).then(function(translated) {
+      modalBody.innerHTML = formatBody(translated);
       translateBtn.textContent = "\u21a9 Torna all'originale";
       translateBtn.disabled = false;
       isTranslated = true;
@@ -356,19 +385,17 @@
     });
   });
 
-  // --- Chiudi modal ---
   function closeModal() {
     modalOverlay.classList.remove('open');
     document.body.style.overflow = '';
     currentModalNews = null;
     isTranslated = false;
-    renderAll(); // aggiorna spunte letto
+    renderAll();
   }
   modalClose.addEventListener('click', closeModal);
   modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) closeModal(); });
   document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
 
-  // --- Hero ---
   function renderHero(news) {
     if (!news) { heroSection.style.display = 'none'; return; }
     heroSection.style.display = '';
@@ -381,7 +408,6 @@
     heroReadBtn.onclick     = function() { openModal(news); };
   }
 
-  // --- Card ---
   function buildCard(news) {
     var card = document.createElement('div');
     var readCls = isRead(news.id) ? ' card-read' : '';
@@ -411,7 +437,6 @@
     return card;
   }
 
-  // --- Filtro ---
   function getFiltered() {
     if (activeCategory === 'preferiti')  return NEWS.filter(function(n) { return isFav(n.id); });
     if (activeCategory === 'leggi-dopo') return NEWS.filter(function(n) { return isLater(n.id); });
@@ -419,7 +444,6 @@
     return NEWS.filter(function(n) { return n.cat === activeCategory; });
   }
 
-  // --- Render ---
   function renderAll() {
     var filtered = getFiltered();
     renderHero(filtered[0] || null);
