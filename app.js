@@ -1,6 +1,9 @@
 (function () {
   'use strict';
 
+  var WORKER_URL = 'https://il-punto-dispatch.francescoeramo4.workers.dev';
+  var WORKFLOW_WAIT_MS = 55000; // 55 secondi per far completare il workflow
+
   var CAT_LABELS = {
     'politica-italiana': 'Politica IT',
     'geopolitica':       'Geopolitica',
@@ -11,7 +14,6 @@
     'leggi-dopo':        '\u23f0 Leggi dopo'
   };
 
-  // Categorie senza hero banner
   var NO_HERO_CATS = { 'leggi-dopo': true, 'preferiti': true };
 
   var EXPANSION_TEMPLATES = [
@@ -114,18 +116,14 @@
       if (card._newsId !== id) return;
       var wasRead = isRead(id);
       card.classList.toggle('card-read', wasRead);
-      // Rimuovi pulsante leggi-dopo dalla card se ora e' letta
       var laterBtn = card.querySelector('.card-later-btn');
       if (laterBtn) laterBtn.style.display = wasRead ? 'none' : '';
-      // Aggiorna stato del pulsante leggi-dopo
       if (laterBtn) laterBtn.classList.toggle('later-on', isLater(id));
-      // Badge read
       var badge = card.querySelector('.card-read-badge');
-      if (badge) badge.style.display = wasRead ? '' : 'none';
+      if (badge) badge.style.display = wasRead ? 'inline-flex' : 'none';
     });
   }
 
-  // Espansione nella lingua originale
   function expandBodyForLang(news, lang) {
     var body = (news.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     if (body.length >= 200) return body;
@@ -135,7 +133,6 @@
     return EXPANSION_TEMPLATES[idx](news);
   }
 
-  // Rilevamento lingua
   var IT_RE = /\b(il|la|le|gli|dei|che|con|per|una|del|della|delle|degli|nel|nella|nelle|negli|anche|dopo|prima|mentre|quando|per\u00f2|inoltre|quindi|tuttavia|secondo|governo|stato|paese|sono|questa|questo|essere|aveva|hanno|viene|venire|loro|come|dove|tutto|tutti|tutte|ogni|molto|anni|anno|parte|caso|modo|volta|sempre|ancora|pi\u00f9|gi\u00e0|solo|fare|fatto|dire|detto|nuovo|grande|primo|italiano|italiana|italiani|italiane|nazionale|ministro|parlamento|regione|comune|impresa|azienda|lavoro|economia|politica|guerra|pace|accordo|legge|decreto|riforma|elezioni|partito|coalizione|sinistra|destra|centro|euro|milioni|miliardi)\b/gi;
   var ES_RE = /\b(el|los|las|del|de|en|con|por|para|que|una|un|es|son|ha|han|ser|estar|tiene|tienen|este|esta|estos|estas|pero|como|cuando|donde|todo|todos|todas|sobre|entre|cada|muy|bien|m\u00e1s|tambi\u00e9n|a\u00f1o|pa\u00eds|gobierno|partido|espa\u00f1a|madrid|barcelona|seg\u00fan|tras|durante|fue|sus|siendo|su|al)\b/gi;
   var EN_RE = /\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|has|him|his|how|its|may|new|now|old|see|two|way|who|said|have|that|from|they|this|will|with|been|into|more|also|when|your|time|than|then|them|some|would|could|about|which|their|there|these|those|where|while|being|after|under|since|before|between|through|during|however|because|therefore|government|minister|president|country|national|political|military|economic|according|reported|official|sources|amid|push|deal|talks|says|ceasefire|frozen|unlock|why|wrong|leaders|scorn|strongmen)\b/gi;
@@ -160,7 +157,6 @@
     return 'en';
   }
 
-  // Traduzione MyMemory
   function translateText(text, sl) {
     var langpair = (sl || 'en') + '|it';
     var chunks = [], rem = text;
@@ -232,6 +228,9 @@
   var menuToggle        = document.getElementById('menuToggle');
   var mobileNav         = document.getElementById('mobileNav');
   var allCatBtns        = document.querySelectorAll('.cat-btn');
+  var refreshOverlay    = document.getElementById('refreshOverlay');
+  var refreshOverlayMsg = document.getElementById('refreshOverlayMsg');
+  var refreshOverlayCounter = document.getElementById('refreshOverlayCounter');
 
   applyTheme(localStorage.getItem(THEME_KEY) || 'light');
   themeToggle.addEventListener('click', function() {
@@ -257,15 +256,46 @@
   });
 
   // -------------------------------------------------------
-  // REFRESH: svuota le notizie lette, poi ricarica la pagina
-  // Le notizie lette vengono rimosse cosi' al reload
-  // i nuovi articoli (con nuovi ID) risulteranno tutti non letti
+  // REFRESH: triggera il workflow via Cloudflare Worker,
+  // mostra spinner con countdown, poi ricarica con cache-bust
   // -------------------------------------------------------
   refreshBtn.addEventListener('click', function() {
+    refreshBtn.disabled = true;
     localStorage.removeItem(READ_KEY);
     read = new Set();
-    resetCountdown();
-    location.reload();
+
+    // Mostra overlay spinner
+    refreshOverlay.style.display = 'flex';
+    refreshOverlayMsg.textContent = 'Recupero notizie aggiornate\u2026';
+
+    var remaining = Math.ceil(WORKFLOW_WAIT_MS / 1000);
+    refreshOverlayCounter.textContent = 'Pronto tra ' + remaining + 's';
+    var ticker = setInterval(function() {
+      remaining--;
+      refreshOverlayCounter.textContent = remaining > 0 ? 'Pronto tra ' + remaining + 's' : 'Caricamento\u2026';
+    }, 1000);
+
+    // Chiama il worker per triggerare il workflow
+    fetch(WORKER_URL, { method: 'POST' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          refreshOverlayMsg.textContent = '\u2705 Workflow avviato! Attendo il completamento\u2026';
+        } else {
+          refreshOverlayMsg.textContent = '\u26a0\ufe0f Errore avvio workflow, ricarico comunque\u2026';
+        }
+      })
+      .catch(function() {
+        refreshOverlayMsg.textContent = '\u26a0\ufe0f Connessione al worker fallita, ricarico comunque\u2026';
+      })
+      .finally(function() {
+        // Dopo WORKFLOW_WAIT_MS ricarica con cache-bust
+        setTimeout(function() {
+          clearInterval(ticker);
+          var url = location.href.split('?')[0] + '?t=' + Date.now();
+          location.replace(url);
+        }, WORKFLOW_WAIT_MS);
+      });
   });
 
   function formatCountdown(sec) {
@@ -279,10 +309,10 @@
       refreshCountdown--;
       if (refreshTimer) refreshTimer.textContent = formatCountdown(refreshCountdown);
       if (refreshCountdown <= 0) {
-        // Auto-refresh: svuota lette e ricarica
         localStorage.removeItem(READ_KEY);
         resetCountdown();
-        location.reload();
+        var url = location.href.split('?')[0] + '?t=' + Date.now();
+        location.replace(url);
       }
     }, 1000);
   }
@@ -389,8 +419,6 @@
     }
   }
 
-  // Costruisce la card con il pulsante "Leggi dopo"
-  // Il pulsante e' nascosto se la notizia e' gia' letta
   function buildCard(news) {
     var card = document.createElement('div');
     var wasRead = isRead(news.id);
@@ -398,7 +426,7 @@
     card._newsId = news.id;
 
     var tags = (news.tags || []).map(function(t) { return '<span class="card-tag">#' + t + '</span>'; }).join('');
-    var readBadgeStyle = wasRead ? '' : 'display:none';
+    var readBadgeStyle = wasRead ? 'display:inline-flex' : 'display:none';
     var laterBtnStyle  = wasRead ? 'display:none' : '';
     var laterOnClass   = isLater(news.id) ? ' later-on' : '';
 
@@ -421,10 +449,8 @@
         '</span>' +
       '</div>';
 
-    // Click sulla card apre il modal
     card.addEventListener('click', function() { openModal(news); });
 
-    // Click sul pulsante leggi-dopo: toggle senza aprire il modal
     var laterBtn = card.querySelector('.card-later-btn');
     if (laterBtn) {
       laterBtn.addEventListener('click', function(e) {

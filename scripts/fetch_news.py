@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-fetch_news.py — scarica RSS, genera news.js e aggiorna index.html con cache-bust timestamp.
-Notizie più vecchie di 48 ore vengono scartate.
+fetch_news.py — scarica RSS, genera news.js (ordinato per data decrescente)
+e aggiorna index.html con cache-bust timestamp.
 """
 
 import feedparser
@@ -51,8 +51,8 @@ KEYWORDS = {
     "economia-tech": ["economia","economy","market","mercato","stock","borsa","bce","fed","inflation","inflazione","rate","tasso","startup","investment","gdp","pil","trade","semiconductor","energy","crypto","bitcoin","fintech","ipo"],
 }
 
-MAX_PER_CAT   = 10
-MAX_AGE_HOURS = 48
+MAX_PER_CAT    = 10
+MAX_AGE_HOURS  = 48
 MIN_BODY_CHARS = 800
 ROOT = Path(__file__).parent.parent
 
@@ -164,12 +164,21 @@ def fetch_all():
     for cat, items in buckets.items():
         seen = set()
         unique = []
-        for item in sorted(items, key=lambda x: (-x["score"], x["pub_dt"] or ""), reverse=False):
+        # Ordina: prima per data decrescente (piu' recente prima),
+        # a parita' di data usa lo score come criterio secondario
+        sorted_items = sorted(
+            items,
+            key=lambda x: (x["pub_dt"] or "", x["score"]),
+            reverse=True
+        )
+        for item in sorted_items:
             norm = re.sub(r"[^a-z0-9]", "", item["title"].lower())[:60]
             if norm not in seen:
                 seen.add(norm)
                 unique.append(item)
-        result[cat] = unique[:MAX_PER_CAT]
+            if len(unique) >= MAX_PER_CAT:
+                break
+        result[cat] = unique
     return result
 
 
@@ -210,10 +219,8 @@ def generate_news_js(buckets, ts):
 
 
 def update_index_html(ts):
-    """Aggiorna il tag <script src="news.js"> con il timestamp come query string."""
     index_path = ROOT / "index.html"
     html = index_path.read_text(encoding="utf-8")
-    # Sostituisce news.js?t=QUALSIASI oppure solo news.js (senza ?)
     html = re.sub(
         r'(<script src="news\.js)(?:\?t=\d+)?(">)',
         rf'\g<1>?t={ts}\2',

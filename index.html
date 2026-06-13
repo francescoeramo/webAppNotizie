@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src https://api.mymemory.translated.net; img-src 'self' data:;" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; connect-src https://api.mymemory.translated.net https://il-punto-dispatch.francescoeramo4.workers.dev; img-src 'self' data:;" />
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <meta http-equiv="X-Frame-Options" content="DENY" />
   <meta name="referrer" content="no-referrer" />
@@ -45,6 +45,22 @@
     </div>
   </header>
 
+  <!-- Overlay spinner refresh -->
+  <div id="refreshOverlay" style="
+    display:none; position:fixed; inset:0; z-index:999;
+    background:rgba(0,0,0,.55); align-items:center; justify-content:center;
+    flex-direction:column; gap:18px; color:#fff; font-family:Inter,sans-serif;
+  ">
+    <div style="
+      width:48px; height:48px; border:4px solid rgba(255,255,255,.3);
+      border-top-color:#fff; border-radius:50%;
+      animation:spin .8s linear infinite;
+    "></div>
+    <div id="refreshOverlayMsg" style="font-size:1rem; font-weight:600; letter-spacing:.3px;">Avvio aggiornamento…</div>
+    <div id="refreshOverlayCounter" style="font-size:.82rem; color:rgba(255,255,255,.7);"></div>
+  </div>
+  <style>@keyframes spin { to { transform:rotate(360deg); } }</style>
+
   <main>
     <section class="hero-section" id="heroSection">
       <div class="hero-inner">
@@ -60,7 +76,6 @@
           <button class="hero-read-btn" id="heroReadBtn">Leggi di pi&ugrave;</button>
         </div>
       </div>
-      <!-- Badge "già letta" iniettato via JS per evitare problemi CSS content -->
       <div class="hero-read-indicator" id="heroReadIndicator" style="display:none">
         <span class="check-circle">&#10003;</span> Gi&agrave; letta
       </div>
