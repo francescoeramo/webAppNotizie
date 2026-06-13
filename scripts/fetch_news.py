@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-fetch_news.py — scarica RSS, genera news.js con articoli recenti e rilevanti.
+fetch_news.py — scarica RSS, genera news.js e aggiorna index.html con cache-bust timestamp.
 Notizie più vecchie di 48 ore vengono scartate.
 """
 
@@ -51,8 +51,8 @@ KEYWORDS = {
     "economia-tech": ["economia","economy","market","mercato","stock","borsa","bce","fed","inflation","inflazione","rate","tasso","startup","investment","gdp","pil","trade","semiconductor","energy","crypto","bitcoin","fintech","ipo"],
 }
 
-MAX_PER_CAT   = 10   # max notizie per categoria
-MAX_AGE_HOURS = 48   # scarta notizie più vecchie di 48 ore
+MAX_PER_CAT   = 10
+MAX_AGE_HOURS = 48
 MIN_BODY_CHARS = 800
 ROOT = Path(__file__).parent.parent
 
@@ -69,7 +69,6 @@ def truncate(text, max_chars=300):
 
 
 def get_pub_dt(entry):
-    """Restituisce datetime UTC o None."""
     parsed = entry.get("published_parsed") or entry.get("updated_parsed")
     if not parsed:
         return None
@@ -130,16 +129,15 @@ def fetch_all():
         print(f"  Fetching {source['name']}...")
         try:
             feed = feedparser.parse(source["url"])
-            entries = feed.entries[:30]  # considera più entry per fonte
+            entries = feed.entries[:30]
         except Exception as e:
             print(f"    ERRORE: {e}")
             continue
 
         for entry in entries:
-            # Filtra per età
             pub_dt = get_pub_dt(entry)
             if pub_dt and pub_dt < cutoff:
-                continue  # troppo vecchia
+                continue
 
             score = score_entry(entry, cat)
             if score == 0 and cat not in ("ai", "economia-tech"):
@@ -166,9 +164,7 @@ def fetch_all():
     for cat, items in buckets.items():
         seen = set()
         unique = []
-        # Ordina: score decrescente, poi data decrescente
         for item in sorted(items, key=lambda x: (-x["score"], x["pub_dt"] or ""), reverse=False):
-            # reverse=False perché il sort key già nega lo score
             norm = re.sub(r"[^a-z0-9]", "", item["title"].lower())[:60]
             if norm not in seen:
                 seen.add(norm)
@@ -181,11 +177,12 @@ def js_string(s):
     return json.dumps(s, ensure_ascii=False)
 
 
-def generate_news_js(buckets):
+def generate_news_js(buckets, ts):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     lines = []
     lines.append(f"// Generato automaticamente il {now} da scripts/fetch_news.py")
     lines.append("// NON modificare manualmente: viene sovrascritto ogni ora dalla GitHub Action.")
+    lines.append(f"var NEWS_TIMESTAMP = {ts};")
     lines.append("")
     lines.append("const RSS_SOURCES = " + json.dumps(
         [{"name": s["name"], "url": s["url"], "cat": s["cat"]} for s in RSS_SOURCES],
@@ -212,15 +209,31 @@ def generate_news_js(buckets):
     return "\n".join(lines) + "\n"
 
 
+def update_index_html(ts):
+    """Aggiorna il tag <script src="news.js"> con il timestamp come query string."""
+    index_path = ROOT / "index.html"
+    html = index_path.read_text(encoding="utf-8")
+    # Sostituisce news.js?t=QUALSIASI oppure solo news.js (senza ?)
+    html = re.sub(
+        r'(<script src="news\.js)(?:\?t=\d+)?(">)',
+        rf'\g<1>?t={ts}\2',
+        html
+    )
+    index_path.write_text(html, encoding="utf-8")
+    print(f"index.html aggiornato con ?t={ts}")
+
+
 if __name__ == "__main__":
     print("=== fetch_news.py ===")
-    print(f"Avviato: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
+    ts = int(datetime.now(timezone.utc).timestamp())
+    print(f"Avviato: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} (ts={ts})")
     buckets = fetch_all()
     total = sum(len(v) for v in buckets.values())
     print(f"Articoli raccolti: {total}")
     for cat, items in buckets.items():
         print(f"  {cat}: {len(items)}")
-    js = generate_news_js(buckets)
+    js = generate_news_js(buckets, ts)
     out_path = ROOT / "news.js"
     out_path.write_text(js, encoding="utf-8")
     print(f"news.js aggiornato ({len(js)} byte)")
+    update_index_html(ts)
