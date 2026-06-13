@@ -2,7 +2,7 @@
   'use strict';
 
   var WORKER_URL = 'https://il-punto-dispatch.francescoeramo4.workers.dev';
-  var WORKFLOW_WAIT_MS = 55000; // 55 secondi per far completare il workflow
+  var WORKFLOW_WAIT_MS = 55000;
 
   var CAT_LABELS = {
     'politica-italiana': 'Politica IT',
@@ -200,6 +200,11 @@
       .map(function(p) { return '<p>' + p + '</p>'; }).join('');
   }
 
+  // Ordina NEWS per pub_ts decrescente una volta sola al caricamento
+  var SORTED_NEWS = (typeof NEWS !== 'undefined' ? NEWS.slice() : []).sort(function(a, b) {
+    return (b.pub_ts || 0) - (a.pub_ts || 0);
+  });
+
   // DOM refs
   var grid              = document.getElementById('newsGrid');
   var heroSection       = document.getElementById('heroSection');
@@ -255,16 +260,11 @@
     });
   });
 
-  // -------------------------------------------------------
-  // REFRESH: triggera il workflow via Cloudflare Worker,
-  // mostra spinner con countdown, poi ricarica con cache-bust
-  // -------------------------------------------------------
   refreshBtn.addEventListener('click', function() {
     refreshBtn.disabled = true;
     localStorage.removeItem(READ_KEY);
     read = new Set();
 
-    // Mostra overlay spinner
     refreshOverlay.style.display = 'flex';
     refreshOverlayMsg.textContent = 'Recupero notizie aggiornate\u2026';
 
@@ -275,25 +275,20 @@
       refreshOverlayCounter.textContent = remaining > 0 ? 'Pronto tra ' + remaining + 's' : 'Caricamento\u2026';
     }, 1000);
 
-    // Chiama il worker per triggerare il workflow
     fetch(WORKER_URL, { method: 'POST' })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        if (data.ok) {
-          refreshOverlayMsg.textContent = '\u2705 Workflow avviato! Attendo il completamento\u2026';
-        } else {
-          refreshOverlayMsg.textContent = '\u26a0\ufe0f Errore avvio workflow, ricarico comunque\u2026';
-        }
+        refreshOverlayMsg.textContent = data.ok
+          ? '\u2705 Workflow avviato! Attendo il completamento\u2026'
+          : '\u26a0\ufe0f Errore avvio workflow, ricarico comunque\u2026';
       })
       .catch(function() {
         refreshOverlayMsg.textContent = '\u26a0\ufe0f Connessione al worker fallita, ricarico comunque\u2026';
       })
       .finally(function() {
-        // Dopo WORKFLOW_WAIT_MS ricarica con cache-bust
         setTimeout(function() {
           clearInterval(ticker);
-          var url = location.href.split('?')[0] + '?t=' + Date.now();
-          location.replace(url);
+          location.replace(location.href.split('?')[0] + '?t=' + Date.now());
         }, WORKFLOW_WAIT_MS);
       });
   });
@@ -311,8 +306,7 @@
       if (refreshCountdown <= 0) {
         localStorage.removeItem(READ_KEY);
         resetCountdown();
-        var url = location.href.split('?')[0] + '?t=' + Date.now();
-        location.replace(url);
+        location.replace(location.href.split('?')[0] + '?t=' + Date.now());
       }
     }, 1000);
   }
@@ -321,12 +315,10 @@
   function updateModalButtons() {
     if (!currentModalNews) return;
     var id = currentModalNews.id;
-    var fOn = isFav(id);
-    modalFavBtn.classList.toggle('fav-on', fOn);
-    modalFavBtn.title = fOn ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti';
-    var lOn = isLater(id);
-    modalLaterBtn.classList.toggle('later-on', lOn);
-    modalLaterBtn.title = lOn ? 'Rimuovi da Leggi dopo' : 'Aggiungi a Leggi dopo';
+    modalFavBtn.classList.toggle('fav-on', isFav(id));
+    modalFavBtn.title = isFav(id) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti';
+    modalLaterBtn.classList.toggle('later-on', isLater(id));
+    modalLaterBtn.title = isLater(id) ? 'Rimuovi da Leggi dopo' : 'Aggiungi a Leggi dopo';
   }
 
   function openModal(news) {
@@ -414,9 +406,7 @@
     heroTime.textContent    = news.time;
     heroSource.textContent  = news.source;
     heroReadBtn.onclick     = function() { openModal(news); };
-    if (heroReadIndicator) {
-      heroReadIndicator.style.display = isRead(news.id) ? 'flex' : 'none';
-    }
+    if (heroReadIndicator) heroReadIndicator.style.display = isRead(news.id) ? 'flex' : 'none';
   }
 
   function buildCard(news) {
@@ -450,7 +440,6 @@
       '</div>';
 
     card.addEventListener('click', function() { openModal(news); });
-
     var laterBtn = card.querySelector('.card-later-btn');
     if (laterBtn) {
       laterBtn.addEventListener('click', function(e) {
@@ -459,15 +448,16 @@
         laterBtn.classList.toggle('later-on', isLater(news.id));
       });
     }
-
     return card;
   }
 
   function getFiltered() {
-    if (activeCategory === 'preferiti')  return NEWS.filter(function(n) { return isFav(n.id); });
-    if (activeCategory === 'leggi-dopo') return NEWS.filter(function(n) { return isLater(n.id); });
-    if (activeCategory === 'all') return NEWS;
-    return NEWS.filter(function(n) { return n.cat === activeCategory; });
+    var base;
+    if (activeCategory === 'preferiti')  base = SORTED_NEWS.filter(function(n) { return isFav(n.id); });
+    else if (activeCategory === 'leggi-dopo') base = SORTED_NEWS.filter(function(n) { return isLater(n.id); });
+    else if (activeCategory === 'all')   base = SORTED_NEWS;
+    else base = SORTED_NEWS.filter(function(n) { return n.cat === activeCategory; });
+    return base;
   }
 
   function renderAll() {
