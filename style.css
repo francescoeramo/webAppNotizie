@@ -102,24 +102,6 @@ body {
 .hero-section.cat-bg-ai                { background: var(--cat-ai); }
 .hero-section.cat-bg-economia-tech     { background: var(--cat-economia); }
 
-/* Badge "Già letta" sull'hero — testo ASCII semplice, nessun unicode problematico */
-.hero-section.hero-read::after {
-  content: 'Gia\0027 letta';
-  position: absolute; top: 14px; right: 18px;
-  background: rgba(255,255,255,.22); color: #fff;
-  font-size: .72rem; font-weight: 700;
-  padding: 3px 10px; border-radius: 12px;
-  letter-spacing: .5px; backdrop-filter: blur(4px);
-  display: flex; align-items: center; gap: 4px;
-}
-/* Piccolo cerchio blu con spunta prima del testo */
-.hero-section.hero-read::before {
-  /* sovrascrive il gradiente: usiamo un pseudo separato via outline su ::after */
-  content: ''; position: absolute; inset: 0;
-  background: linear-gradient(135deg, rgba(0,0,0,.2) 0%, transparent 60%);
-  pointer-events: none;
-}
-
 .hero-inner {
   max-width: 1280px; margin: 0 auto;
   padding: 48px 24px 52px;
@@ -160,14 +142,13 @@ body {
 }
 .hero-read-btn:hover { background: rgba(255,255,255,.35); transform: translateY(-1px); }
 
-/* Indicatore "già letta" sull'hero come elemento HTML (più affidabile del CSS content) */
 .hero-read-indicator {
   position: absolute; top: 14px; right: 18px; z-index: 2;
   background: rgba(255,255,255,.22); color: #fff;
   font-size: .72rem; font-weight: 700;
   padding: 3px 10px; border-radius: 12px;
   letter-spacing: .5px; backdrop-filter: blur(4px);
-  display: flex; align-items: center; gap: 5px;
+  display: none; align-items: center; gap: 5px;
 }
 .hero-read-indicator .check-circle {
   width: 14px; height: 14px;
@@ -197,7 +178,7 @@ body {
   -webkit-tap-highlight-color: transparent; position: relative;
 }
 .news-card:hover { transform: translateY(-3px); box-shadow: 0 6px 24px rgba(0,0,0,.12); }
-.news-card.card-read { opacity: .78; }
+.news-card.card-read { opacity: .72; }
 .news-card.card-read .card-title { color: var(--text-muted); }
 
 .card-cat-bar { height: 4px; background: var(--accent); }
@@ -244,10 +225,29 @@ body {
   border-radius: 10px; padding: 2px 8px; color: var(--text-muted);
 }
 .card-footer {
-  padding: 8px 16px 14px; display: flex; justify-content: space-between;
+  padding: 8px 16px 12px;
+  display: flex; justify-content: space-between; align-items: center;
   font-size: .72rem; color: var(--text-muted); border-top: 1px solid var(--border);
 }
+.card-footer-right {
+  display: flex; align-items: center; gap: 8px;
+}
 .card-source { font-weight: 600; }
+.card-time { color: var(--text-muted); }
+
+/* Pulsante "Leggi dopo" sulla card */
+.card-later-btn {
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  width: 26px; height: 26px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .8rem; cursor: pointer; color: var(--text-muted);
+  transition: all .2s; padding: 0; flex-shrink: 0;
+  line-height: 1;
+}
+.card-later-btn:hover { border-color: var(--later-color); color: var(--later-color); transform: scale(1.15); }
+.card-later-btn.later-on { background: var(--later-color); border-color: var(--later-color); color: #fff; }
 
 /* MODAL */
 .modal-overlay {
