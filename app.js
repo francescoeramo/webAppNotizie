@@ -30,19 +30,18 @@
     }
   ];
 
-  var FAV_KEY        = 'ilPuntoFavorites';
-  var LATER_KEY      = 'ilPuntoReadLater';
-  var READ_KEY       = 'ilPuntoRead';
-  var THEME_KEY      = 'ilPuntoTheme';
-  var REFRESH_MS     = 60 * 60 * 1000;
+  var FAV_KEY    = 'ilPuntoFavorites';
+  var LATER_KEY  = 'ilPuntoReadLater';
+  var READ_KEY   = 'ilPuntoRead';
+  var THEME_KEY  = 'ilPuntoTheme';
+  var REFRESH_MS = 60 * 60 * 1000;
 
-  var activeCategory    = 'all';
-  var currentModalNews  = null;
-  var isTranslated      = false;
-  var refreshCountdown  = REFRESH_MS / 1000;
+  var activeCategory   = 'all';
+  var currentModalNews = null;
+  var isTranslated     = false;
+  var refreshCountdown = REFRESH_MS / 1000;
   var countdownInterval = null;
 
-  // --- Persistenza ---
   var favs  = new Set(JSON.parse(localStorage.getItem(FAV_KEY)   || '[]'));
   var later = new Set(JSON.parse(localStorage.getItem(LATER_KEY) || '[]'));
   var read  = new Set(JSON.parse(localStorage.getItem(READ_KEY)  || '[]'));
@@ -57,19 +56,47 @@
 
   function toggleFav(id) {
     if (favs.has(id)) favs.delete(id); else favs.add(id);
-    saveFavs(); renderAll();
-    if (currentModalNews && currentModalNews.id === id) updateModalButtons();
+    saveFavs();
+    updateModalButtons();
+    // Aggiorna solo la card coinvolta senza ridisegnare tutto
+    refreshCard(id);
   }
   function toggleLater(id) {
     if (later.has(id)) later.delete(id); else later.add(id);
-    saveLater(); renderAll();
-    if (currentModalNews && currentModalNews.id === id) updateModalButtons();
+    saveLater();
+    updateModalButtons();
+    refreshCard(id);
   }
   function markRead(id) {
     if (!read.has(id)) { read.add(id); saveRead(); }
   }
 
-  // --- Espansione body corto ---
+  // Aggiorna una singola card già nel DOM (evita re-render completo mentre il modal è aperto)
+  function refreshCard(id) {
+    // Se siamo in leggi-dopo e togliamo la notizia, la card sparisce
+    if (activeCategory === 'leggi-dopo' && !isLater(id)) { renderAll(); return; }
+    if (activeCategory === 'preferiti'  && !isFav(id))   { renderAll(); return; }
+    // Altrimenti aggiorna solo badge e classe
+    var cards = grid.querySelectorAll('.news-card');
+    cards.forEach(function(card) {
+      if (card._newsId === id) {
+        card.classList.toggle('card-read', isRead(id));
+        var badge = card.querySelector('.card-read-badge');
+        if (isRead(id) && !badge) {
+          var topline = card.querySelector('.card-topline');
+          if (topline) {
+            var sp = document.createElement('span');
+            sp.className = 'card-read-badge';
+            sp.title = 'Gi\u00e0 letta';
+            sp.textContent = '\u2714';
+            topline.appendChild(sp);
+          }
+        }
+      }
+    });
+  }
+
+  // --- Espansione body corto (usata SOLO per la visualizzazione, NON per il rilevamento lingua) ---
   function expandBody(news) {
     var body = (news.body || '').trim();
     if (body.length < 300) {
@@ -79,99 +106,93 @@
     return body;
   }
 
-  // --- Rilevamento lingua robusto ---
-  // Conta parole italiane VS parole spagnole/inglesi per decidere
-  var IT_WORDS = /\b(il|la|le|gli|dei|che|con|per|una|del|della|delle|degli|nel|nella|nelle|negli|anche|dopo|prima|mentre|quando|per\u00f2|inoltre|quindi|tuttavia|secondo|governo|stato|paese|sono|questa|questo|essere|aveva|hanno|viene|venire|loro|come|dove|tutto|tutti|tutte|ogni|molto|molto|anni|anno|parte|caso|modo|volta|sempre|ancora|pi\u00f9|gi\u00e0|solo|fare|fatto|dire|detto|nuovo|grande|primo|italiano|italiana|italiani|italiane|nazionale|ministro|parlamento|regione|comune|impresa|azienda|lavoro|economia|politica|guerra|pace|accordo|legge|decreto|riforma|elezioni|partito|coalizione|sinistra|destra|centro|euro|milioni|miliardi)\b/gi;
-  var ES_WORDS = /\b(el|la|los|las|del|de|en|con|por|para|que|una|un|es|son|ha|han|ser|estar|tiene|tienen|este|esta|estos|estas|pero|como|cuando|donde|todo|todos|todas|sobre|entre|cada|muy|bien|m\u00e1s|tambi\u00e9n|a\u00f1o|pa\u00eds|gobierno|partido|espa\u00f1a|madrid|barcelona)\b/gi;
-  var EN_WORDS = /\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|day|get|has|him|his|how|its|may|new|now|old|see|two|way|who|did|did|let|put|say|she|too|use|said|have|that|from|they|this|will|with|been|into|more|also|when|your|time|than|then|them|some|would|could|about|which|their|there|these|those|where|while|being|after|under|since|before|between|through|during|however|because|therefore|government|minister|president|country|national|political|military|economic|according|reported|official)\b/gi;
+  // --- Rilevamento lingua sul testo ORIGINALE (title + body grezzo, prima dell'espansione) ---
+  var IT_RE = /\b(il|la|le|gli|dei|che|con|per|una|del|della|delle|degli|nel|nella|nelle|negli|anche|dopo|prima|mentre|quando|per\u00f2|inoltre|quindi|tuttavia|secondo|governo|stato|paese|sono|questa|questo|essere|aveva|hanno|viene|venire|loro|come|dove|tutto|tutti|tutte|ogni|molto|anni|anno|parte|caso|modo|volta|sempre|ancora|pi\u00f9|gi\u00e0|solo|fare|fatto|dire|detto|nuovo|grande|primo|italiano|italiana|italiani|italiane|nazionale|ministro|parlamento|regione|comune|impresa|azienda|lavoro|economia|politica|guerra|pace|accordo|legge|decreto|riforma|elezioni|partito|coalizione|sinistra|destra|centro|euro|milioni|miliardi)\b/gi;
+  var ES_RE = /\b(el|los|las|del|de|en|con|por|para|que|una|un|es|son|ha|han|ser|estar|tiene|tienen|este|esta|estos|estas|pero|como|cuando|donde|todo|todos|todas|sobre|entre|cada|muy|bien|m\u00e1s|tambi\u00e9n|a\u00f1o|pa\u00eds|gobierno|partido|espa\u00f1a|madrid|barcelona|seg\u00fan|tras|durante|fue|han|sus|entre|siendo)\b/gi;
+  var EN_RE = /\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|has|him|his|how|its|may|new|now|old|see|two|way|who|said|have|that|from|they|this|will|with|been|into|more|also|when|your|time|than|then|them|some|would|could|about|which|their|there|these|those|where|while|being|after|under|since|before|between|through|during|however|because|therefore|government|minister|president|country|national|political|military|economic|according|reported|official|sources|amid|push|deal|talks|says|amid|while|after|over|amid|ceasefire|frozen|unlock)\b/gi;
 
-  function detectLang(text) {
-    var sample = text.slice(0, 1200);
-    var itCount = (sample.match(IT_WORDS) || []).length;
-    var esCount = (sample.match(ES_WORDS) || []).length;
-    var enCount = (sample.match(EN_WORDS) || []).length;
-    // Heuristica: se le parole IT sono >= 40% del totale segnalato => italiano
-    var total = itCount + esCount + enCount;
-    if (total === 0) return 'it'; // testo vuoto: assume italiano
-    var itRatio = itCount / total;
-    if (itRatio >= 0.38) return 'it';
-    if (esCount > enCount * 1.3) return 'es';
+  function detectLangRaw(news) {
+    // Usa SOLO il testo originale: titolo + body grezzo (non espanso)
+    var raw = (news.title + ' ' + (news.body || '') + ' ' + (news.summary || '')).slice(0, 1500);
+    var itC = (raw.match(IT_RE) || []).length;
+    var esC = (raw.match(ES_RE) || []).length;
+    var enC = (raw.match(EN_RE) || []).length;
+    var tot = itC + esC + enC;
+    if (tot === 0) {
+      // Nessuna parola riconosciuta: fallback su source
+      var src = (news.source || '').toLowerCase();
+      if (src.indexOf('ansa') !== -1 || src.indexOf('corriere') !== -1 ||
+          src.indexOf('post') !== -1 || src.indexOf('valigia') !== -1 ||
+          src.indexOf('pagella') !== -1 || src.indexOf('facta') !== -1 ||
+          src.indexOf('sole') !== -1 || src.indexOf('wired it') !== -1 ||
+          src.indexOf('sky tg') !== -1 || src.indexOf('agi') !== -1 ||
+          src.indexOf('internazionale') !== -1 || src.indexOf('limes') !== -1) {
+        return 'it';
+      }
+      if (src.indexOf('pa\u00eds') !== -1 || src.indexOf('pais') !== -1) return 'es';
+      return 'en';
+    }
+    var itRatio = itC / tot;
+    if (itRatio >= 0.35) return 'it';
+    if (esC > enC * 1.2) return 'es';
     return 'en';
   }
 
-  function needsTranslation(text) {
-    return detectLang(text) !== 'it';
-  }
-
-  // --- Traduzione MyMemory (supporta en->it e es->it) ---
-  function translateText(text, sourceLang) {
-    var sl = sourceLang || 'en';
-    var langpair = sl + '|it';
+  // --- Traduzione MyMemory ---
+  function translateText(text, sl) {
+    var langpair = (sl || 'en') + '|it';
     var chunks = [];
-    var remaining = text;
-    while (remaining.length > 0) {
-      var cut = Math.min(450, remaining.length);
-      if (remaining.length > 450) {
-        var lastDot = remaining.lastIndexOf('.', 450);
-        if (lastDot > 200) cut = lastDot + 1;
+    var rem = text;
+    while (rem.length > 0) {
+      var cut = Math.min(450, rem.length);
+      if (rem.length > 450) {
+        var ld = rem.lastIndexOf('.', 450);
+        if (ld > 200) cut = ld + 1;
       }
-      chunks.push(remaining.slice(0, cut).trim());
-      remaining = remaining.slice(cut).trim();
+      chunks.push(rem.slice(0, cut).trim());
+      rem = rem.slice(cut).trim();
     }
-    var promises = chunks.map(function(chunk) {
+    return Promise.all(chunks.map(function(chunk) {
       if (!chunk) return Promise.resolve('');
       var url = 'https://api.mymemory.translated.net/get?q='
         + encodeURIComponent(chunk) + '&langpair=' + encodeURIComponent(langpair);
       return fetch(url)
         .then(function(r) { return r.json(); })
         .then(function(d) {
-          return (d && d.responseData && d.responseData.translatedText)
-            ? d.responseData.translatedText : chunk;
+          return (d && d.responseData && d.responseData.translatedText) ? d.responseData.translatedText : chunk;
         })
         .catch(function() { return chunk; });
-    });
-    return Promise.all(promises).then(function(parts) { return parts.join(' '); });
+    })).then(function(parts) { return parts.join(' '); });
   }
 
   // --- Formattazione HTML body ---
-  function formatBody(rawBody) {
-    var html = (rawBody || '')
-      .replace(/&amp;/g, '&')
-      .replace(/&#039;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/&#8217;/g, "\u2019")
-      .replace(/&#8216;/g, "\u2018")
-      .replace(/&#8220;/g, '"')
-      .replace(/&#8221;/g, '"')
-      .replace(/&#160;/g, ' ')
-      .replace(/&#8230;/g, '...')
-      .replace(/<img[^>]*>/gi, '')
-      .replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s{2,}/g, ' ')
-      .trim();
-    var paragraphs;
+  function formatBody(raw) {
+    var html = (raw || '')
+      .replace(/&amp;/g, '&').replace(/&#039;/g, "'").replace(/&quot;/g, '"')
+      .replace(/&#8217;/g, '\u2019').replace(/&#8216;/g, '\u2018')
+      .replace(/&#8220;/g, '\u201c').replace(/&#8221;/g, '\u201d')
+      .replace(/&#160;/g, ' ').replace(/&#8230;/g, '\u2026')
+      .replace(/<img[^>]*>/gi, '').replace(/<a[^>]*>(.*?)<\/a>/gi, '$1')
+      .replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    var paras;
     if (html.indexOf('\n\n') !== -1) {
-      paragraphs = html.split(/\n\n+/);
+      paras = html.split(/\n\n+/);
     } else if (html.indexOf('\n') !== -1) {
-      paragraphs = html.split(/\n+/);
+      paras = html.split(/\n+/);
     } else {
-      paragraphs = [];
-      var rem = html;
-      while (rem.length > 500) {
-        var dot = rem.indexOf('. ', 300);
-        if (dot === -1 || dot > 700) dot = 500;
-        else dot += 1;
-        paragraphs.push(rem.slice(0, dot).trim());
-        rem = rem.slice(dot).trim();
+      paras = [];
+      var r = html;
+      while (r.length > 500) {
+        var dot = r.indexOf('. ', 300);
+        if (dot === -1 || dot > 700) dot = 500; else dot += 1;
+        paras.push(r.slice(0, dot).trim());
+        r = r.slice(dot).trim();
       }
-      if (rem) paragraphs.push(rem);
+      if (r) paras.push(r);
     }
-    return paragraphs
-      .map(function(p) { return p.trim(); })
+    return paras.map(function(p) { return p.trim(); })
       .filter(function(p) { return p.length > 0; })
-      .map(function(p) { return '<p>' + p + '</p>'; })
-      .join('');
+      .map(function(p) { return '<p>' + p + '</p>'; }).join('');
   }
 
   // --- DOM refs ---
@@ -200,8 +221,7 @@
   var refreshTimer      = document.getElementById('refreshTimer');
   var menuToggle        = document.getElementById('menuToggle');
   var mobileNav         = document.getElementById('mobileNav');
-
-  var allCatBtns = document.querySelectorAll('.cat-btn');
+  var allCatBtns        = document.querySelectorAll('.cat-btn');
 
   // --- Tema ---
   applyTheme(localStorage.getItem(THEME_KEY) || 'light');
@@ -215,9 +235,7 @@
   }
 
   // --- Menu mobile ---
-  menuToggle.addEventListener('click', function() {
-    mobileNav.classList.toggle('open');
-  });
+  menuToggle.addEventListener('click', function() { mobileNav.classList.toggle('open'); });
 
   // --- Filtri categoria ---
   allCatBtns.forEach(function(btn) {
@@ -250,20 +268,19 @@
   }
   resetCountdown();
 
-  // --- Modal: aggiorna pulsanti ---
+  // --- Aggiorna stato pulsanti modal ---
   function updateModalButtons() {
     if (!currentModalNews) return;
     var id = currentModalNews.id;
-    // Preferiti
     var fOn = isFav(id);
     modalFavBtn.classList.toggle('fav-on', fOn);
     modalFavBtn.title = fOn ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti';
-    // Leggi dopo
     var lOn = isLater(id);
     modalLaterBtn.classList.toggle('later-on', lOn);
     modalLaterBtn.title = lOn ? 'Rimuovi da Leggi dopo' : 'Aggiungi a Leggi dopo';
   }
 
+  // --- Apri modal ---
   function openModal(news) {
     currentModalNews = news;
     isTranslated = false;
@@ -276,42 +293,42 @@
     modalTime.textContent   = '\ud83d\udd50 ' + news.time;
     modalLink.href          = news.url;
 
-    var bodyText = expandBody(news);
-    modalBody.innerHTML = formatBody(bodyText);
+    // Mostra il body espanso nel modal
+    var bodyDisplay = expandBody(news);
+    modalBody.innerHTML = formatBody(bodyDisplay);
 
-    // Rileva lingua su titolo + body (senza HTML)
-    var plainText = news.title + ' ' + bodyText.replace(/<[^>]+>/g, ' ');
-    var lang = detectLang(plainText);
+    // IMPORTANTE: rileva la lingua sul testo ORIGINALE (news.title + news.body + news.summary)
+    // prima che venga aggiunto il wrapper italiano dell'expansion template
+    var lang = detectLangRaw(news);
     if (lang !== 'it') {
       translateBtn.style.display = '';
       translateBtn.textContent = '\ud83c\udf10 Traduci in italiano';
       translateBtn.disabled = false;
-      translateBtn._sourceLang = lang; // memorizza lingua sorgente
+      translateBtn._sl = lang;
     } else {
       translateBtn.style.display = 'none';
-      translateBtn._sourceLang = 'it';
+      translateBtn._sl = 'it';
     }
 
     // Fonti correlate
-    var relatedSources = (typeof RSS_SOURCES !== 'undefined')
+    var rel = (typeof RSS_SOURCES !== 'undefined')
       ? RSS_SOURCES.filter(function(s) { return s.cat === news.cat; }) : [];
-    if (relatedSources.length) {
+    if (rel.length) {
       modalSourcesBlock.innerHTML = '<strong>Fonti monitorate:</strong> '
-        + relatedSources.map(function(s) { return '<span>' + s.name + '</span>'; }).join('');
+        + rel.map(function(s) { return '<span>' + s.name + '</span>'; }).join('');
       modalSourcesBlock.style.display = '';
     } else {
       modalSourcesBlock.style.display = 'none';
     }
 
-    updateModalButtons();
-    modalFavBtn.onclick   = function() { toggleFav(news.id); };
-    modalLaterBtn.onclick = function() { toggleLater(news.id); };
+    // Collega i pulsanti
+    modalFavBtn.onclick   = function(e) { e.stopPropagation(); toggleFav(news.id); };
+    modalLaterBtn.onclick = function(e) { e.stopPropagation(); toggleLater(news.id); };
 
+    updateModalButtons();
     modalOverlay.classList.add('open');
     document.body.style.overflow = 'hidden';
     modalClose.focus();
-    // Aggiorna la card/hero per mostrare spunta letto
-    renderAll();
   }
 
   // --- Traduzione ---
@@ -325,10 +342,11 @@
     }
     translateBtn.textContent = '\u23f3 Traduzione in corso\u2026';
     translateBtn.disabled = true;
-    var rawText = expandBody(currentModalNews).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    var sl = translateBtn._sourceLang || 'en';
-    translateText(rawText, sl).then(function(translated) {
-      modalBody.innerHTML = formatBody(translated);
+    // Traduci il body originale (non il wrapper italiano)
+    var rawText = (currentModalNews.body || currentModalNews.summary || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!rawText) rawText = currentModalNews.summary || '';
+    translateText(rawText, translateBtn._sl || 'en').then(function(t) {
+      modalBody.innerHTML = formatBody(t);
       translateBtn.textContent = "\u21a9 Torna all'originale";
       translateBtn.disabled = false;
       isTranslated = true;
@@ -344,6 +362,7 @@
     document.body.style.overflow = '';
     currentModalNews = null;
     isTranslated = false;
+    renderAll(); // aggiorna spunte letto
   }
   modalClose.addEventListener('click', closeModal);
   modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) closeModal(); });
@@ -365,14 +384,14 @@
   // --- Card ---
   function buildCard(news) {
     var card = document.createElement('div');
-    var readClass = isRead(news.id) ? ' card-read' : '';
-    card.className = 'news-card cat-' + news.cat + readClass;
+    var readCls = isRead(news.id) ? ' card-read' : '';
+    card.className = 'news-card cat-' + news.cat + readCls;
+    card._newsId = news.id;
     var tags = (news.tags || []).map(function(t) {
       return '<span class="card-tag">#' + t + '</span>';
     }).join('');
     var readBadge = isRead(news.id)
-      ? '<span class="card-read-badge" title="Gi\u00e0 letta">\u2714</span>'
-      : '';
+      ? '<span class="card-read-badge" title="Gi\u00e0 letta">\u2714</span>' : '';
     card.innerHTML =
       '<div class="card-cat-bar"></div>' +
       '<div class="card-body">' +
@@ -392,7 +411,7 @@
     return card;
   }
 
-  // --- Filtro notizie ---
+  // --- Filtro ---
   function getFiltered() {
     if (activeCategory === 'preferiti')  return NEWS.filter(function(n) { return isFav(n.id); });
     if (activeCategory === 'leggi-dopo') return NEWS.filter(function(n) { return isLater(n.id); });
@@ -400,7 +419,7 @@
     return NEWS.filter(function(n) { return n.cat === activeCategory; });
   }
 
-  // --- Render principale ---
+  // --- Render ---
   function renderAll() {
     var filtered = getFiltered();
     renderHero(filtered[0] || null);
@@ -411,8 +430,7 @@
         'preferiti':  'Nessuna notizia salvata. Apri una notizia e premi \u2605 per aggiungerla qui.',
         'leggi-dopo': 'Nessuna notizia in coda. Apri una notizia e premi \u23f0 per aggiungerla qui.'
       };
-      var msg = msgs[activeCategory] || 'Nessuna notizia disponibile in questa categoria.';
-      grid.innerHTML = '<div class="empty-state">' + msg + '</div>';
+      grid.innerHTML = '<div class="empty-state">' + (msgs[activeCategory] || 'Nessuna notizia disponibile.') + '</div>';
       return;
     }
     rest.forEach(function(n) { grid.appendChild(buildCard(n)); });
