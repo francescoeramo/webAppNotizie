@@ -46,9 +46,35 @@ KEYWORDS = {
     "economia-tech": ["economia","economy","market","mercato","stock","borsa","bce","fed","inflation","inflazione","rate","tasso","startup","investment","gdp","pil","trade","semiconductor","energy","crypto","bitcoin","fintech","ipo"],
 }
 
-MAX_PER_CAT    = 10
+# Frasi boilerplate da rimuovere dal corpo degli articoli
+BOILERPLATE_PATTERNS = [
+    r"(?i)continua\s+a\s+leggere[^.]{0,60}[.…]?",
+    r"(?i)leggi\s+(l.articolo|tutto|di\s+pi\u00f9)[^.]{0,60}[.…]?",
+    r"(?i)in\s+continuo\s+aggiornamento[^.]{0,60}[.…]?",
+    r"(?i)notizia\s+in\s+aggiornamento[^.]{0,60}[.…]?",
+    r"(?i)articolo\s+in\s+aggiornamento[^.]{0,60}[.…]?",
+    r"(?i)seguono\s+aggiornamenti[^.]{0,60}[.…]?",
+    r"(?i)aggiornamento\s+in\s+corso[^.]{0,60}[.…]?",
+    r"(?i)this\s+story\s+is\s+(being\s+)?updated[^.]{0,60}[.…]?",
+    r"(?i)this\s+is\s+a\s+developing\s+story[^.]{0,60}[.…]?",
+    r"(?i)developing\s+story[^.]{0,60}[.…]?",
+    r"(?i)this\s+article\s+will\s+be\s+updated[^.]{0,60}[.…]?",
+    r"(?i)read\s+(more|the\s+full\s+(story|article))[^.]{0,60}[.…]?",
+    r"(?i)click\s+here\s+to\s+read[^.]{0,60}[.…]?",
+    r"(?i)subscribe\s+to\s+read[^.]{0,80}[.…]?",
+    r"(?i)per\s+leggere\s+l.articolo\s+completo[^.]{0,60}[.…]?",
+    r"(?i)\[\s*\u2026\s*\]",
+    r"(?i)\(\s*segue\s*\)",
+    r"(?i)\(\s*ansa\s*\)",
+    r"(?i)—\s*reuters\.?$",
+    r"(?i)reporting\s+by[^.]{0,80}[.…]?",
+    r"(?i)editing\s+by[^.]{0,80}[.…]?",
+    r"(?i)compiled\s+by[^.]{0,80}[.…]?",
+]
+
+MAX_PER_CAT    = 20
 MAX_AGE_HOURS  = 48
-MIN_BODY_CHARS = 800
+MIN_BODY_CHARS = 100  # soglia bassa: mostriamo tutto quello che c'e'
 ROOT = Path(__file__).parent.parent
 
 
@@ -56,7 +82,14 @@ def clean_html(text):
     text = re.sub(r"<[^>]+>", " ", text or "")
     return re.sub(r"\s+", " ", text).strip()
 
-def truncate(text, max_chars=300):
+def remove_boilerplate(text):
+    for pattern in BOILERPLATE_PATTERNS:
+        text = re.sub(pattern, "", text)
+    # Rimuovi righe vuote multiple lasciate dalla rimozione
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+def truncate(text, max_chars=400):
     if len(text) <= max_chars:
         return text
     return text[:max_chars].rsplit(" ", 1)[0] + "\u2026"
@@ -87,16 +120,29 @@ def score_entry(entry, cat):
     return sum(1 for kw in KEYWORDS.get(cat, []) if kw in text)
 
 def build_body(entry):
+    """Estrae il corpo completo dell'articolo, pulisce boilerplate, struttura in paragrafi."""
     summary = clean_html(entry.get("summary", "") or entry.get("description", ""))
+
+    # Cerca il contenuto piu' lungo disponibile nell'RSS
     content_list = entry.get("content", [])
     full = ""
     for c in content_list:
         candidate = clean_html(c.get("value", ""))
         if len(candidate) > len(full):
             full = candidate
+
+    # Usa il piu' lungo tra full content e summary
     body = full if len(full) > len(summary) + 50 else summary
-    if len(body) < MIN_BODY_CHARS:
-        return body
+
+    # Rimuovi frasi boilerplate
+    body = remove_boilerplate(body)
+
+    # Se il corpo e' gia' diviso in paragrafi, rispetta la struttura
+    if "\n\n" in body:
+        paragraphs = [p.strip() for p in body.split("\n\n") if p.strip()]
+        return "\n\n".join(paragraphs)
+
+    # Altrimenti, spezza in paragrafi ogni ~400 caratteri al punto fermo
     words = body.split()
     paragraphs, current, count = [], [], 0
     for w in words:
@@ -107,6 +153,7 @@ def build_body(entry):
             current, count = [], 0
     if current:
         paragraphs.append(" ".join(current))
+
     return "\n\n".join(paragraphs)
 
 def fetch_all():
@@ -118,7 +165,7 @@ def fetch_all():
         print(f"  Fetching {source['name']}...")
         try:
             feed = feedparser.parse(source["url"])
-            entries = feed.entries[:30]
+            entries = feed.entries[:40]  # leggi piu' voci per avere piu' scelta
         except Exception as e:
             print(f"    ERRORE: {e}")
             continue
@@ -134,16 +181,16 @@ def fetch_all():
 
             title   = clean_html(entry.get("title", "")).strip()
             summary = clean_html(entry.get("summary", "") or entry.get("description", ""))
-            if not title or len(summary) < 30:
+            if not title or len(summary) < 20:
                 continue
 
-            # pub_ts: Unix timestamp intero (0 se assente)
             pub_ts = int(pub_dt.timestamp()) if pub_dt else 0
+            body   = build_body(entry)
 
             buckets[cat].append({
                 "title":   title,
-                "summary": truncate(summary, 280),
-                "body":    build_body(entry),
+                "summary": truncate(summary, 400),
+                "body":    body,
                 "source":  source["name"],
                 "url":     entry.get("link", source["url"]),
                 "time":    relative_time(pub_dt),
@@ -155,7 +202,6 @@ def fetch_all():
     for cat, items in buckets.items():
         seen = set()
         unique = []
-        # Ordina: data decrescente prima, score come secondario
         for item in sorted(items, key=lambda x: (x["pub_ts"], x["score"]), reverse=True):
             norm = re.sub(r"[^a-z0-9]", "", item["title"].lower())[:60]
             if norm not in seen:
