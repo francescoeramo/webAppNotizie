@@ -1,493 +1,84 @@
 (function () {
   'use strict';
 
-  var WORKER_URL = 'https://il-punto-dispatch.francescoeramo4.workers.dev';
-  var WORKFLOW_WAIT_MS = 55000;
-
-  var CAT_LABELS = {
-    'politica-italiana': 'Politica IT',
-    'geopolitica':       'Geopolitica',
-    'conflitti':         'Conflitti',
-    'ai':                'AI & Tech',
-    'economia-tech':     'Economia',
-    'preferiti':         '\u2605 Preferiti',
-    'leggi-dopo':        '\u23f0 Leggi dopo'
+  var CAT_LABELS = { 'politica-italiana': 'Italia', geopolitica: 'Mondo', conflitti: 'Conflitti', ai: 'Tecnologia', 'economia-tech': 'Economia', preferiti: 'Preferiti', 'leggi-dopo': 'Leggi dopo' };
+  var CAT_DESCRIPTIONS = {
+    all: ['Panoramica', 'Le notizie da seguire', 'Una selezione ordinata per rilevanza e aggiornamento.'],
+    'politica-italiana': ['Italia', 'Dentro l’Italia', 'Politica, società e fatti rilevanti raccontati da fonti italiane affidabili.'],
+    geopolitica: ['Mondo', 'Scenari internazionali', 'Diplomazia, relazioni globali e cambiamenti che incidono anche sull’Italia.'],
+    conflitti: ['Conflitti', 'Le crisi aperte', 'Aggiornamenti distinti dal contesto: fatti, sviluppi e fonti da seguire.'],
+    ai: ['Tecnologia', 'AI e innovazione', 'Tecnologie, ricerca e impatti concreti su lavoro, imprese e società.'],
+    'economia-tech': ['Economia', 'Mercati e imprese', 'Economia reale, finanza e innovazione con attenzione alle ricadute in Italia.'],
+    preferiti: ['La tua raccolta', 'Preferiti', 'Le notizie che vuoi ritrovare.'],
+    'leggi-dopo': ['La tua coda', 'Leggi dopo', 'Gli articoli che hai scelto di approfondire.']
   };
-
-  var NO_HERO_CATS = { 'leggi-dopo': true, 'preferiti': true };
-
-  var EXPANSION_TEMPLATES = [
-    function(n) {
-      return 'La notizia riportata da ' + n.source + ' ha attirato l\'attenzione dell\'opinione pubblica. '
-        + 'Secondo le prime informazioni disponibili, ' + n.summary + ' '
-        + 'I dettagli completi sono in corso di verifica da parte delle redazioni. '
-        + 'L\'evoluzione della situazione viene monitorata in tempo reale dalle principali agenzie di stampa. '
-        + 'Ulteriori aggiornamenti sono attesi nelle prossime ore, man mano che emergono nuovi elementi. '
-        + 'Per l\'articolo completo con tutti gli approfondimenti, consulta la fonte originale.';
-    },
-    function(n) {
-      return 'La fonte ' + n.source + ' riporta un aggiornamento su questo tema di rilievo. '
-        + n.summary + ' '
-        + 'Il contesto in cui si inserisce questa notizia \u00e8 in rapida evoluzione. '
-        + 'Le istituzioni competenti stanno seguendo la situazione con attenzione. '
-        + 'Esperti del settore sottolineano l\'importanza di questo sviluppo nel quadro attuale. '
-        + 'Segui gli aggiornamenti sulla nostra piattaforma per restare informato in tempo reale.';
-    }
-  ];
-
-  var EXPANSION_TEMPLATES_EN = [
-    function(n) {
-      return 'This story reported by ' + n.source + ' has drawn significant public attention. '
-        + 'According to the latest available information, ' + (n.summary || '') + ' '
-        + 'Full details are still being verified by editorial teams across major newsrooms. '
-        + 'The situation is being monitored in real time by leading international news agencies. '
-        + 'Further updates are expected in the coming hours as new elements emerge. '
-        + 'For the complete article with all background details, please refer to the original source.';
-    },
-    function(n) {
-      return 'Source ' + n.source + ' reports an update on this significant development. '
-        + (n.summary || '') + ' '
-        + 'The context surrounding this news is rapidly evolving. '
-        + 'Relevant institutions are closely monitoring the situation. '
-        + 'Experts in the field highlight the importance of this development in the current global landscape. '
-        + 'Follow updates on our platform to stay informed in real time.';
-    }
-  ];
-
-  var EXPANSION_TEMPLATES_ES = [
-    function(n) {
-      return 'Esta noticia reportada por ' + n.source + ' ha captado la atenci\u00f3n p\u00fablica. '
-        + 'Seg\u00fan la informaci\u00f3n disponible, ' + (n.summary || '') + ' '
-        + 'Los detalles completos est\u00e1n siendo verificados por los equipos editoriales. '
-        + 'La situaci\u00f3n est\u00e1 siendo monitoreada en tiempo real por las principales agencias de noticias. '
-        + 'Se esperan m\u00e1s actualizaciones en las pr\u00f3ximas horas. '
-        + 'Para el art\u00edculo completo, consulte la fuente original.';
-    },
-    function(n) {
-      return 'La fuente ' + n.source + ' informa sobre este importante tema. '
-        + (n.summary || '') + ' '
-        + 'El contexto de esta noticia est\u00e1 en r\u00e1pida evoluci\u00f3n. '
-        + 'Las instituciones competentes siguen de cerca la situaci\u00f3n. '
-        + 'Los expertos subrayan la importancia de este desarrollo. '
-        + 'Siga las actualizaciones en nuestra plataforma para mantenerse informado.';
-    }
-  ];
-
-  var FAV_KEY    = 'ilPuntoFavorites';
-  var LATER_KEY  = 'ilPuntoReadLater';
-  var READ_KEY   = 'ilPuntoRead';
-  var THEME_KEY  = 'ilPuntoTheme';
+  var NO_HERO_CATS = { preferiti: true, 'leggi-dopo': true };
+  var FAV_KEY = 'lagraffaFavorites', LATER_KEY = 'lagraffaReadLater', READ_KEY = 'lagraffaRead', THEME_KEY = 'lagraffaTheme';
   var REFRESH_MS = 60 * 60 * 1000;
+  var activeCategory = 'all', currentModalNews = null, aiContent = null, showingAi = false;
+  var SORTED_NEWS = (typeof NEWS === 'undefined' ? [] : NEWS).slice().sort(function (a, b) { return (b.pub_ts || 0) - (a.pub_ts || 0); });
+  var favs = readSet(FAV_KEY), later = readSet(LATER_KEY), read = readSet(READ_KEY);
 
-  var activeCategory    = 'all';
-  var currentModalNews  = null;
-  var isTranslated      = false;
-  var refreshCountdown  = REFRESH_MS / 1000;
-  var countdownInterval = null;
-
-  var favs  = new Set(JSON.parse(localStorage.getItem(FAV_KEY)   || '[]'));
-  var later = new Set(JSON.parse(localStorage.getItem(LATER_KEY) || '[]'));
-  var read  = new Set(JSON.parse(localStorage.getItem(READ_KEY)  || '[]'));
-
-  function saveFavs()  { localStorage.setItem(FAV_KEY,   JSON.stringify(Array.from(favs)));  }
-  function saveLater() { localStorage.setItem(LATER_KEY, JSON.stringify(Array.from(later))); }
-  function saveRead()  { localStorage.setItem(READ_KEY,  JSON.stringify(Array.from(read)));  }
-
-  function isFav(id)   { return favs.has(id);  }
-  function isLater(id) { return later.has(id); }
-  function isRead(id)  { return read.has(id);  }
-
-  function toggleFav(id) {
-    if (favs.has(id)) favs.delete(id); else favs.add(id);
-    saveFavs(); updateModalButtons(); refreshCard(id);
-  }
-  function toggleLater(id) {
-    if (later.has(id)) later.delete(id); else later.add(id);
-    saveLater(); updateModalButtons(); refreshCard(id);
-  }
-  function markRead(id) {
-    if (!read.has(id)) { read.add(id); saveRead(); refreshCard(id); }
-  }
-
-  function refreshCard(id) {
-    if (activeCategory === 'leggi-dopo' && !isLater(id)) { renderAll(); return; }
-    if (activeCategory === 'preferiti'  && !isFav(id))   { renderAll(); return; }
-    grid.querySelectorAll('.news-card').forEach(function(card) {
-      if (card._newsId !== id) return;
-      var wasRead = isRead(id);
-      card.classList.toggle('card-read', wasRead);
-      var laterBtn = card.querySelector('.card-later-btn');
-      if (laterBtn) laterBtn.style.display = wasRead ? 'none' : '';
-      if (laterBtn) laterBtn.classList.toggle('later-on', isLater(id));
-      var badge = card.querySelector('.card-read-badge');
-      if (badge) badge.style.display = wasRead ? 'inline-flex' : 'none';
-    });
-  }
-
-  function expandBodyForLang(news, lang) {
-    var body = (news.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (body.length >= 200) return body;
-    var idx = news.id % 2;
-    if (lang === 'en') return EXPANSION_TEMPLATES_EN[idx](news);
-    if (lang === 'es') return EXPANSION_TEMPLATES_ES[idx](news);
-    return EXPANSION_TEMPLATES[idx](news);
-  }
-
-  var IT_RE = /\b(il|la|le|gli|dei|che|con|per|una|del|della|delle|degli|nel|nella|nelle|negli|anche|dopo|prima|mentre|quando|per\u00f2|inoltre|quindi|tuttavia|secondo|governo|stato|paese|sono|questa|questo|essere|aveva|hanno|viene|venire|loro|come|dove|tutto|tutti|tutte|ogni|molto|anni|anno|parte|caso|modo|volta|sempre|ancora|pi\u00f9|gi\u00e0|solo|fare|fatto|dire|detto|nuovo|grande|primo|italiano|italiana|italiani|italiane|nazionale|ministro|parlamento|regione|comune|impresa|azienda|lavoro|economia|politica|guerra|pace|accordo|legge|decreto|riforma|elezioni|partito|coalizione|sinistra|destra|centro|euro|milioni|miliardi)\b/gi;
-  var ES_RE = /\b(el|los|las|del|de|en|con|por|para|que|una|un|es|son|ha|han|ser|estar|tiene|tienen|este|esta|estos|estas|pero|como|cuando|donde|todo|todos|todas|sobre|entre|cada|muy|bien|m\u00e1s|tambi\u00e9n|a\u00f1o|pa\u00eds|gobierno|partido|espa\u00f1a|madrid|barcelona|seg\u00fan|tras|durante|fue|sus|siendo|su|al)\b/gi;
-  var EN_RE = /\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|has|him|his|how|its|may|new|now|old|see|two|way|who|said|have|that|from|they|this|will|with|been|into|more|also|when|your|time|than|then|them|some|would|could|about|which|their|there|these|those|where|while|being|after|under|since|before|between|through|during|however|because|therefore|government|minister|president|country|national|political|military|economic|according|reported|official|sources|amid|push|deal|talks|says|ceasefire|frozen|unlock|why|wrong|leaders|scorn|strongmen)\b/gi;
-
-  var IT_SOURCES = ['ansa','corriere','repubblica','stampa','sole 24','wired it','sky tg','agi','internazionale','limes','il post','valigia','pagella','facta','fanpage','open'];
-  var ES_SOURCES = ['pa\u00eds','pais','el mundo','abc','vanguardia','expansi\u00f3n','expansion','lavanguardia'];
-
-  function detectLangRaw(news) {
-    var raw = ((news.title || '') + ' ' + (news.body || '') + ' ' + (news.summary || '')).slice(0, 1500);
-    var itC = (raw.match(IT_RE) || []).length;
-    var esC = (raw.match(ES_RE) || []).length;
-    var enC = (raw.match(EN_RE) || []).length;
-    var tot = itC + esC + enC;
-    if (tot < 5) {
-      var src = (news.source || '').toLowerCase();
-      for (var i = 0; i < IT_SOURCES.length; i++) if (src.indexOf(IT_SOURCES[i]) !== -1) return 'it';
-      for (var j = 0; j < ES_SOURCES.length; j++) if (src.indexOf(ES_SOURCES[j]) !== -1) return 'es';
-      return 'en';
-    }
-    if (itC / tot >= 0.35) return 'it';
-    if (esC > enC * 1.2 && esC > 3) return 'es';
+  function readSet(key) { try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch (_) { return new Set(); } }
+  function saveSet(key, value) { localStorage.setItem(key, JSON.stringify(Array.from(value))); }
+  function escapeHTML(value) { var d = document.createElement('div'); d.textContent = String(value || ''); return d.innerHTML; }
+  function isFav(id) { return favs.has(id); } function isLater(id) { return later.has(id); } function isRead(id) { return read.has(id); }
+  function toggleFav(id) { isFav(id) ? favs.delete(id) : favs.add(id); saveSet(FAV_KEY, favs); updateModalButtons(); renderAll(); }
+  function toggleLater(id) { isLater(id) ? later.delete(id) : later.add(id); saveSet(LATER_KEY, later); updateModalButtons(); renderAll(); }
+  function markRead(id) { if (!isRead(id)) { read.add(id); saveSet(READ_KEY, read); } }
+  function cleanText(text) { return String(text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function detectLang(news) {
+    var text = (news.title + ' ' + news.summary).toLowerCase();
+    if (/\b(il|la|di|che|con|per|notizie|italia|secondo|una|sono)\b/.test(text)) return 'it';
+    if (/\b(el|la|los|las|según|una|con|para|es)\b/.test(text)) return 'es';
     return 'en';
   }
+  function formatBody(text) { return cleanText(text).split(/\n{2,}/).filter(Boolean).map(function (p) { return '<p>' + escapeHTML(p) + '</p>'; }).join(''); }
+  function cacheKey(news) { return 'lagraffa-ai-' + news.id + '-' + (NEWS_TIMESTAMP || 'current'); }
 
-  function translateText(text, sl) {
-    var langpair = (sl || 'en') + '|it';
-    var chunks = [], rem = text;
-    while (rem.length > 0) {
-      var cut = Math.min(480, rem.length);
-      if (rem.length > 480) { var ld = rem.lastIndexOf('. ', 480); if (ld > 150) cut = ld + 2; }
-      chunks.push(rem.slice(0, cut).trim());
-      rem = rem.slice(cut).trim();
-    }
-    return Promise.all(chunks.map(function(chunk) {
-      if (!chunk) return Promise.resolve('');
-      return fetch('https://api.mymemory.translated.net/get?q=' + encodeURIComponent(chunk) + '&langpair=' + encodeURIComponent(langpair))
-        .then(function(r) { return r.json(); })
-        .then(function(d) { return (d && d.responseData && d.responseData.translatedText) ? d.responseData.translatedText : chunk; })
-        .catch(function() { return chunk; });
-    })).then(function(parts) { return parts.join(' '); });
-  }
+  var heroSection = document.getElementById('heroSection'), heroTitle = document.getElementById('heroTitle'), heroSummary = document.getElementById('heroSummary'), heroCat = document.getElementById('heroCat'), heroTime = document.getElementById('heroTime'), heroSource = document.getElementById('heroSource'), heroReadBtn = document.getElementById('heroReadBtn'), heroReadIndicator = document.getElementById('heroReadIndicator');
+  var grid = document.getElementById('newsGrid'), modalOverlay = document.getElementById('modalOverlay'), modalClose = document.getElementById('modalClose'), modalTitle = document.getElementById('modalTitle'), modalCat = document.getElementById('modalCat'), modalSource = document.getElementById('modalSource'), modalTime = document.getElementById('modalTime'), modalBody = document.getElementById('modalBody'), modalLink = document.getElementById('modalLink'), modalFavBtn = document.getElementById('modalFavBtn'), modalLaterBtn = document.getElementById('modalLaterBtn'), translateBtn = document.getElementById('translateBtn'), modalSourcesBlock = document.getElementById('modalSourcesBlock');
+  var themeToggle = document.getElementById('themeToggle'), refreshBtn = document.getElementById('refreshBtn'), refreshTimer = document.getElementById('refreshTimer'), menuToggle = document.getElementById('menuToggle'), mobileNav = document.getElementById('mobileNav');
 
-  function formatBody(raw) {
-    var html = (raw || '')
-      .replace(/&amp;/g,'&').replace(/&#039;/g,"'").replace(/&quot;/g,'"')
-      .replace(/&#8217;/g,'\u2019').replace(/&#8216;/g,'\u2018')
-      .replace(/&#8220;/g,'\u201c').replace(/&#8221;/g,'\u201d')
-      .replace(/&#160;/g,' ').replace(/&#8230;/g,'\u2026')
-      .replace(/<img[^>]*>/gi,'').replace(/<a[^>]*>(.*?)<\/a>/gi,'$1')
-      .replace(/<[^>]+>/g,' ').replace(/\s{2,}/g,' ').trim();
-    var paras;
-    if (html.indexOf('\n\n') !== -1) paras = html.split(/\n\n+/);
-    else if (html.indexOf('\n') !== -1) paras = html.split(/\n+/);
-    else {
-      paras = []; var r = html;
-      while (r.length > 500) {
-        var dot = r.indexOf('. ', 300);
-        if (dot === -1 || dot > 700) dot = 500; else dot += 1;
-        paras.push(r.slice(0, dot).trim()); r = r.slice(dot).trim();
-      }
-      if (r) paras.push(r);
-    }
-    return paras.map(function(p) { return p.trim(); })
-      .filter(function(p) { return p.length > 0; })
-      .map(function(p) { return '<p>' + p + '</p>'; }).join('');
-  }
-
-  // Ordina NEWS per pub_ts decrescente una volta sola al caricamento
-  var SORTED_NEWS = (typeof NEWS !== 'undefined' ? NEWS.slice() : []).sort(function(a, b) {
-    return (b.pub_ts || 0) - (a.pub_ts || 0);
-  });
-
-  // DOM refs
-  var grid              = document.getElementById('newsGrid');
-  var heroSection       = document.getElementById('heroSection');
-  var heroTitle         = document.getElementById('heroTitle');
-  var heroSummary       = document.getElementById('heroSummary');
-  var heroCat           = document.getElementById('heroCat');
-  var heroTime          = document.getElementById('heroTime');
-  var heroSource        = document.getElementById('heroSource');
-  var heroReadBtn       = document.getElementById('heroReadBtn');
-  var heroReadIndicator = document.getElementById('heroReadIndicator');
-  var modalOverlay      = document.getElementById('modalOverlay');
-  var modalClose        = document.getElementById('modalClose');
-  var modalTitle        = document.getElementById('modalTitle');
-  var modalCat          = document.getElementById('modalCat');
-  var modalSource       = document.getElementById('modalSource');
-  var modalTime         = document.getElementById('modalTime');
-  var modalBody         = document.getElementById('modalBody');
-  var modalLink         = document.getElementById('modalLink');
-  var modalFavBtn       = document.getElementById('modalFavBtn');
-  var modalLaterBtn     = document.getElementById('modalLaterBtn');
-  var translateBtn      = document.getElementById('translateBtn');
-  var modalSourcesBlock = document.getElementById('modalSourcesBlock');
-  var themeToggle       = document.getElementById('themeToggle');
-  var refreshBtn        = document.getElementById('refreshBtn');
-  var refreshTimer      = document.getElementById('refreshTimer');
-  var menuToggle        = document.getElementById('menuToggle');
-  var mobileNav         = document.getElementById('mobileNav');
-  var allCatBtns        = document.querySelectorAll('.cat-btn');
-  var refreshOverlay    = document.getElementById('refreshOverlay');
-  var refreshOverlayMsg = document.getElementById('refreshOverlayMsg');
-  var refreshOverlayCounter = document.getElementById('refreshOverlayCounter');
-
+  function applyTheme(theme) { document.documentElement.setAttribute('data-theme', theme); themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙'; }
   applyTheme(localStorage.getItem(THEME_KEY) || 'light');
-  themeToggle.addEventListener('click', function() {
-    var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-    applyTheme(next); localStorage.setItem(THEME_KEY, next);
-  });
-  function applyTheme(t) {
-    document.documentElement.setAttribute('data-theme', t);
-    themeToggle.textContent = t === 'dark' ? '\u2600\ufe0f' : '\ud83c\udf19';
-  }
+  themeToggle.addEventListener('click', function () { var next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'; applyTheme(next); localStorage.setItem(THEME_KEY, next); });
+  menuToggle.addEventListener('click', function () { mobileNav.classList.toggle('open'); });
+  document.querySelectorAll('.cat-btn').forEach(function (button) { button.addEventListener('click', function () { activeCategory = button.dataset.cat; document.querySelectorAll('.cat-btn').forEach(function (item) { item.classList.toggle('active', item.dataset.cat === activeCategory); }); mobileNav.classList.remove('open'); renderAll(); window.scrollTo({ top: 0, behavior: 'smooth' }); }); });
+  refreshBtn.addEventListener('click', function () { location.replace(location.pathname + '?t=' + Date.now()); });
+  var nextRefreshAt = Date.now() + REFRESH_MS;
+  setInterval(function () { var seconds = Math.max(0, Math.round((nextRefreshAt - Date.now()) / 1000)); refreshTimer.textContent = seconds > 60 ? 'Aggiorn. tra ' + Math.ceil(seconds / 60) + ' min' : 'Aggiornamento imminente'; if (!seconds) location.replace(location.pathname + '?t=' + Date.now()); }, 1000);
 
-  menuToggle.addEventListener('click', function() { mobileNav.classList.toggle('open'); });
-
-  allCatBtns.forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      activeCategory = btn.dataset.cat;
-      allCatBtns.forEach(function(b) { b.classList.remove('active'); });
-      document.querySelectorAll('[data-cat="' + activeCategory + '"]').forEach(function(b) { b.classList.add('active'); });
-      mobileNav.classList.remove('open');
-      renderAll();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  });
-
-  refreshBtn.addEventListener('click', function() {
-    refreshBtn.disabled = true;
-    localStorage.removeItem(READ_KEY);
-    read = new Set();
-
-    refreshOverlay.style.display = 'flex';
-    refreshOverlayMsg.textContent = 'Recupero notizie aggiornate\u2026';
-
-    var remaining = Math.ceil(WORKFLOW_WAIT_MS / 1000);
-    refreshOverlayCounter.textContent = 'Pronto tra ' + remaining + 's';
-    var ticker = setInterval(function() {
-      remaining--;
-      refreshOverlayCounter.textContent = remaining > 0 ? 'Pronto tra ' + remaining + 's' : 'Caricamento\u2026';
-    }, 1000);
-
-    fetch(WORKER_URL, { method: 'POST' })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        refreshOverlayMsg.textContent = data.ok
-          ? '\u2705 Workflow avviato! Attendo il completamento\u2026'
-          : '\u26a0\ufe0f Errore avvio workflow, ricarico comunque\u2026';
-      })
-      .catch(function() {
-        refreshOverlayMsg.textContent = '\u26a0\ufe0f Connessione al worker fallita, ricarico comunque\u2026';
-      })
-      .finally(function() {
-        setTimeout(function() {
-          clearInterval(ticker);
-          location.replace(location.href.split('?')[0] + '?t=' + Date.now());
-        }, WORKFLOW_WAIT_MS);
-      });
-  });
-
-  function formatCountdown(sec) {
-    var m = Math.floor(sec / 60);
-    return m > 0 ? 'Aggiorn. tra ' + m + ' min' : 'Aggiorn. tra ' + sec + 's';
-  }
-  function resetCountdown() {
-    refreshCountdown = REFRESH_MS / 1000;
-    if (countdownInterval) clearInterval(countdownInterval);
-    countdownInterval = setInterval(function() {
-      refreshCountdown--;
-      if (refreshTimer) refreshTimer.textContent = formatCountdown(refreshCountdown);
-      if (refreshCountdown <= 0) {
-        localStorage.removeItem(READ_KEY);
-        resetCountdown();
-        location.replace(location.href.split('?')[0] + '?t=' + Date.now());
-      }
-    }, 1000);
-  }
-  resetCountdown();
-
-  function updateModalButtons() {
-    if (!currentModalNews) return;
-    var id = currentModalNews.id;
-    modalFavBtn.classList.toggle('fav-on', isFav(id));
-    modalFavBtn.title = isFav(id) ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti';
-    modalLaterBtn.classList.toggle('later-on', isLater(id));
-    modalLaterBtn.title = isLater(id) ? 'Rimuovi da Leggi dopo' : 'Aggiungi a Leggi dopo';
-  }
-
+  function updateModalButtons() { if (!currentModalNews) return; modalFavBtn.classList.toggle('fav-on', isFav(currentModalNews.id)); modalLaterBtn.classList.toggle('later-on', isLater(currentModalNews.id)); }
+  function setModalContent(news, content) { modalTitle.textContent = content && content.title || news.title; modalBody.innerHTML = formatBody(content && content.summary || news.body || news.summary); }
   function openModal(news) {
-    currentModalNews = news;
-    isTranslated = false;
-    markRead(news.id);
-
-    modalCat.textContent    = CAT_LABELS[news.cat] || news.cat;
-    modalTitle.textContent  = news.title;
-    modalSource.textContent = '\ud83d\udcf0 ' + news.source;
-    modalTime.textContent   = '\ud83d\udd50 ' + news.time;
-    modalLink.href          = news.url;
-
-    var lang = detectLangRaw(news);
-    translateBtn._sl = lang;
-    modalBody.innerHTML = formatBody(expandBodyForLang(news, lang));
-
-    if (lang !== 'it') {
-      translateBtn.style.display = '';
-      translateBtn.textContent = '\ud83c\udf10 Traduci in italiano';
-      translateBtn.disabled = false;
-    } else {
-      translateBtn.style.display = 'none';
-    }
-
-    var rel = (typeof RSS_SOURCES !== 'undefined')
-      ? RSS_SOURCES.filter(function(s) { return s.cat === news.cat; }) : [];
-    if (rel.length) {
-      modalSourcesBlock.innerHTML = '<strong>Fonti monitorate:</strong> '
-        + rel.map(function(s) { return '<span>' + s.name + '</span>'; }).join('');
-      modalSourcesBlock.style.display = '';
-    } else {
-      modalSourcesBlock.style.display = 'none';
-    }
-
-    modalFavBtn.onclick   = function(e) { e.stopPropagation(); toggleFav(news.id); };
-    modalLaterBtn.onclick = function(e) { e.stopPropagation(); toggleLater(news.id); };
-    updateModalButtons();
-    modalOverlay.classList.add('open');
-    document.body.style.overflow = 'hidden';
-    modalClose.focus();
+    currentModalNews = news; aiContent = null; showingAi = false; markRead(news.id); modalCat.textContent = CAT_LABELS[news.cat] || news.cat; modalSource.textContent = '📰 ' + news.source; modalTime.textContent = '🕐 ' + news.time; modalLink.href = news.url; setModalContent(news);
+    var cached; try { cached = JSON.parse(localStorage.getItem(cacheKey(news)) || 'null'); } catch (_) { cached = null; }
+    if (cached && cached.summary) { aiContent = cached; translateBtn.textContent = '✨ Mostra sintesi AI'; } else { translateBtn.textContent = detectLang(news) === 'it' ? '✨ Approfondisci con AI' : '✨ Traduci e approfondisci'; }
+    translateBtn.style.display = ''; translateBtn.disabled = false;
+    var sources = (typeof RSS_SOURCES === 'undefined' ? [] : RSS_SOURCES.filter(function (source) { return source.cat === news.cat; }));
+    modalSourcesBlock.textContent = ''; var strong = document.createElement('strong'); strong.textContent = 'Fonti monitorate:'; modalSourcesBlock.appendChild(strong); sources.forEach(function (source) { var tag = document.createElement('span'); tag.textContent = source.name; modalSourcesBlock.appendChild(tag); }); modalSourcesBlock.style.display = sources.length ? '' : 'none';
+    modalFavBtn.onclick = function () { toggleFav(news.id); }; modalLaterBtn.onclick = function () { toggleLater(news.id); }; updateModalButtons(); modalOverlay.classList.add('open'); document.body.style.overflow = 'hidden'; modalClose.focus();
   }
-
-  translateBtn.addEventListener('click', function() {
+  translateBtn.addEventListener('click', function () {
     if (!currentModalNews) return;
-    var news = currentModalNews;
-    var sl = translateBtn._sl || 'en';
-    if (isTranslated) {
-      modalBody.innerHTML = formatBody(expandBodyForLang(news, sl));
-      translateBtn.textContent = '\ud83c\udf10 Traduci in italiano';
-      isTranslated = false;
-      return;
-    }
-    translateBtn.textContent = '\u23f3 Traduzione in corso\u2026';
-    translateBtn.disabled = true;
-    translateText(news.title + '. ' + expandBodyForLang(news, sl), sl).then(function(translated) {
-      modalBody.innerHTML = formatBody(translated);
-      translateBtn.textContent = "\u21a9 Torna all'originale";
-      translateBtn.disabled = false;
-      isTranslated = true;
-    }).catch(function() {
-      translateBtn.textContent = '\ud83c\udf10 Traduci in italiano';
-      translateBtn.disabled = false;
-    });
+    if (aiContent) { showingAi = !showingAi; setModalContent(currentModalNews, showingAi ? aiContent : null); translateBtn.textContent = showingAi ? '↩ Mostra testo originale' : '✨ Mostra sintesi AI'; return; }
+    translateBtn.disabled = true; translateBtn.textContent = '⏳ Sintesi in preparazione…';
+    fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: currentModalNews.title, text: cleanText(currentModalNews.body || currentModalNews.summary), source: currentModalNews.source, language: detectLang(currentModalNews) }) })
+      .then(function (response) { if (!response.ok) throw new Error('AI unavailable'); return response.json(); })
+      .then(function (data) { aiContent = data; showingAi = true; localStorage.setItem(cacheKey(currentModalNews), JSON.stringify(data)); setModalContent(currentModalNews, data); translateBtn.textContent = '↩ Mostra testo originale'; translateBtn.disabled = false; })
+      .catch(function () { translateBtn.textContent = '✨ Riprova più tardi'; translateBtn.disabled = false; });
   });
+  function closeModal() { modalOverlay.classList.remove('open'); document.body.style.overflow = ''; currentModalNews = null; renderAll(); }
+  modalClose.addEventListener('click', closeModal); modalOverlay.addEventListener('click', function (event) { if (event.target === modalOverlay) closeModal(); }); document.addEventListener('keydown', function (event) { if (event.key === 'Escape') closeModal(); });
 
-  function closeModal() {
-    modalOverlay.classList.remove('open');
-    document.body.style.overflow = '';
-    currentModalNews = null;
-    isTranslated = false;
-    renderAll();
-  }
-  modalClose.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', function(e) { if (e.target === modalOverlay) closeModal(); });
-  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
-
-  function renderHero(news) {
-    if (!news) { heroSection.style.display = 'none'; return; }
-    heroSection.style.display = '';
-    heroSection.className = 'hero-section cat-bg-' + news.cat + (isRead(news.id) ? ' hero-read' : '');
-    heroTitle.textContent   = news.title;
-    heroSummary.textContent = news.summary;
-    heroCat.textContent     = CAT_LABELS[news.cat] || news.cat;
-    heroTime.textContent    = news.time;
-    heroSource.textContent  = news.source;
-    heroReadBtn.onclick     = function() { openModal(news); };
-    if (heroReadIndicator) heroReadIndicator.style.display = isRead(news.id) ? 'flex' : 'none';
-  }
-
+  function renderHero(news) { if (!news) { heroSection.style.display = 'none'; return; } heroSection.style.display = ''; heroSection.className = 'hero-section cat-bg-' + news.cat; heroTitle.textContent = news.title; heroSummary.textContent = news.summary; heroCat.textContent = CAT_LABELS[news.cat] || news.cat; heroTime.textContent = news.time; heroSource.textContent = news.source; heroReadBtn.onclick = function () { openModal(news); }; heroReadIndicator.style.display = isRead(news.id) ? 'flex' : 'none'; }
   function buildCard(news) {
-    var card = document.createElement('div');
-    var wasRead = isRead(news.id);
-    card.className = 'news-card cat-' + news.cat + (wasRead ? ' card-read' : '');
-    card._newsId = news.id;
-
-    var tags = (news.tags || []).map(function(t) { return '<span class="card-tag">#' + t + '</span>'; }).join('');
-    var readBadgeStyle = wasRead ? 'display:inline-flex' : 'display:none';
-    var laterBtnStyle  = wasRead ? 'display:none' : '';
-    var laterOnClass   = isLater(news.id) ? ' later-on' : '';
-
-    card.innerHTML =
-      '<div class="card-cat-bar"></div>' +
-      '<div class="card-body">' +
-        '<div class="card-topline">' +
-          '<span class="card-cat-badge">' + (CAT_LABELS[news.cat] || news.cat) + '</span>' +
-          '<span class="card-read-badge" title="Gi\u00e0 letta" style="' + readBadgeStyle + '">\u2714</span>' +
-        '</div>' +
-        '<div class="card-title">' + news.title + '</div>' +
-        '<div class="card-summary">' + news.summary + '</div>' +
-        (tags ? '<div class="card-tags">' + tags + '</div>' : '') +
-      '</div>' +
-      '<div class="card-footer">' +
-        '<span class="card-source">' + news.source + '</span>' +
-        '<span class="card-footer-right">' +
-          '<span class="card-time">' + news.time + '</span>' +
-          '<button class="card-later-btn' + laterOnClass + '" title="Leggi dopo" style="' + laterBtnStyle + '">\u23f0</button>' +
-        '</span>' +
-      '</div>';
-
-    card.addEventListener('click', function() { openModal(news); });
-    var laterBtn = card.querySelector('.card-later-btn');
-    if (laterBtn) {
-      laterBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        toggleLater(news.id);
-        laterBtn.classList.toggle('later-on', isLater(news.id));
-      });
-    }
-    return card;
+    var card = document.createElement('article'), wasRead = isRead(news.id); card.className = 'news-card cat-' + news.cat + (wasRead ? ' card-read' : ''); card.tabIndex = 0;
+    card.innerHTML = '<div class="card-cat-bar"></div><div class="card-body"><div class="card-topline"><span class="card-cat-badge">' + escapeHTML(CAT_LABELS[news.cat] || news.cat) + '</span><span class="card-read-badge" style="display:' + (wasRead ? 'inline-flex' : 'none') + '">✔</span></div><h3 class="card-title">' + escapeHTML(news.title) + '</h3><p class="card-summary">' + escapeHTML(news.summary) + '</p></div><div class="card-footer"><span class="card-source">' + escapeHTML(news.source) + '</span><span class="card-footer-right"><span class="card-time">' + escapeHTML(news.time) + '</span><button class="card-later-btn' + (isLater(news.id) ? ' later-on' : '') + '" aria-label="Aggiungi a Leggi dopo">⏰</button></span></div>';
+    function show() { openModal(news); } card.addEventListener('click', show); card.addEventListener('keydown', function (event) { if (event.key === 'Enter') show(); }); card.querySelector('.card-later-btn').addEventListener('click', function (event) { event.stopPropagation(); toggleLater(news.id); }); return card;
   }
-
-  function getFiltered() {
-    var base;
-    if (activeCategory === 'preferiti')  base = SORTED_NEWS.filter(function(n) { return isFav(n.id); });
-    else if (activeCategory === 'leggi-dopo') base = SORTED_NEWS.filter(function(n) { return isLater(n.id); });
-    else if (activeCategory === 'all')   base = SORTED_NEWS;
-    else base = SORTED_NEWS.filter(function(n) { return n.cat === activeCategory; });
-    return base;
-  }
-
-  function renderAll() {
-    var filtered = getFiltered();
-    var noHero = !!NO_HERO_CATS[activeCategory];
-
-    if (noHero) {
-      heroSection.style.display = 'none';
-      grid.innerHTML = '';
-      if (!filtered.length) {
-        var msgs = {
-          'preferiti':  'Nessuna notizia salvata. Apri una notizia e premi \u2605 per aggiungerla qui.',
-          'leggi-dopo': 'Nessuna notizia in coda. Apri una notizia e premi \u23f0 per aggiungerla qui.'
-        };
-        grid.innerHTML = '<div class="empty-state">' + (msgs[activeCategory] || 'Nessuna notizia disponibile.') + '</div>';
-        return;
-      }
-      filtered.forEach(function(n) { grid.appendChild(buildCard(n)); });
-      return;
-    }
-
-    renderHero(filtered[0] || null);
-    grid.innerHTML = '';
-    var rest = filtered.slice(1);
-    if (!rest.length) {
-      grid.innerHTML = '<div class="empty-state">Nessuna notizia disponibile in questa categoria.</div>';
-      return;
-    }
-    rest.forEach(function(n) { grid.appendChild(buildCard(n)); });
-  }
-
+  function getFiltered() { if (activeCategory === 'preferiti') return SORTED_NEWS.filter(function (n) { return isFav(n.id); }); if (activeCategory === 'leggi-dopo') return SORTED_NEWS.filter(function (n) { return isLater(n.id); }); return activeCategory === 'all' ? SORTED_NEWS : SORTED_NEWS.filter(function (n) { return n.cat === activeCategory; }); }
+  function renderAll() { var description = CAT_DESCRIPTIONS[activeCategory], filtered = getFiltered(), noHero = NO_HERO_CATS[activeCategory]; document.getElementById('sectionKicker').textContent = description[0]; document.getElementById('sectionTitle').textContent = description[1]; document.getElementById('sectionDescription').textContent = description[2]; renderHero(noHero ? null : filtered[0]); grid.textContent = ''; var shown = noHero ? filtered : filtered.slice(1); if (!shown.length) { var empty = document.createElement('p'); empty.className = 'empty-state'; empty.textContent = noHero ? 'Non ci sono ancora notizie in questa sezione.' : 'Non ci sono altre notizie disponibili in questa sezione.'; grid.appendChild(empty); return; } shown.forEach(function (news) { grid.appendChild(buildCard(news)); }); }
   renderAll();
 })();

@@ -38,6 +38,10 @@ RSS_SOURCES = [
     {"name": "The Economist Ec", "url": "https://www.economist.com/business/rss.xml",                        "cat": "economia-tech"},
 ]
 
+# Le fonti italiane restano il punto di partenza: la priorità interviene solo
+# a parità di freschezza e rilevanza, senza nascondere il necessario contesto estero.
+ITALIAN_SOURCES = {"ANSA", "Corriere", "Il Post", "Sky TG24", "AGI", "Pagella Politica", "Facta", "Valigia Blu", "Limes", "Internazionale", "Wired IT", "Il Post Tech", "Il Sole 24 Ore"}
+
 KEYWORDS = {
     "politica-italiana": ["italia","governo","meloni","parlamento","senato","camera","ministro","pd","fdi","lega","forza italia","m5s","decreto","riforma","quirinale","premier","elezioni","regione","comune","sindaco"],
     "geopolitica": ["nato","geopolitics","geopolitica","summit","diplomacy","diplomazia","us","usa","china","cina","russia","europe","europa","trump","xi","un ","onu","g7","g20","sanctions","treaty","election","president","presidente"],
@@ -73,6 +77,7 @@ BOILERPLATE_PATTERNS = [
 ]
 
 MAX_PER_CAT    = 20
+MAX_PER_SOURCE = 3
 MAX_AGE_HOURS  = 48
 MIN_BODY_CHARS = 100  # soglia bassa: mostriamo tutto quello che c'e'
 ROOT = Path(__file__).parent.parent
@@ -196,17 +201,23 @@ def fetch_all():
                 "time":    relative_time(pub_dt),
                 "pub_ts":  pub_ts,
                 "score":   score,
+                "italian_priority": source["name"] in ITALIAN_SOURCES,
             })
 
     result = {}
     for cat, items in buckets.items():
         seen = set()
         unique = []
-        for item in sorted(items, key=lambda x: (x["pub_ts"], x["score"]), reverse=True):
+        source_counts = {}
+        # Favoriamo fonti italiane e articoli pertinenti, mantenendo un limite per
+        # testata così da non trasformare la rassegna nel feed di un solo editore.
+        for item in sorted(items, key=lambda x: (x["italian_priority"], x["score"], x["pub_ts"]), reverse=True):
             norm = re.sub(r"[^a-z0-9]", "", item["title"].lower())[:60]
-            if norm not in seen:
+            source = item["source"]
+            if norm not in seen and source_counts.get(source, 0) < MAX_PER_SOURCE:
                 seen.add(norm)
                 unique.append(item)
+                source_counts[source] = source_counts.get(source, 0) + 1
             if len(unique) >= MAX_PER_CAT:
                 break
         result[cat] = unique

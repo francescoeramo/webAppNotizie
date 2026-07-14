@@ -1,0 +1,10 @@
+# Environment variables and local Vercel metadata
+.env
+.env.*
+!.env.example
+.vercel
+
+# Local tooling
+node_modules/
+__pycache__/
+*.py[cod]
