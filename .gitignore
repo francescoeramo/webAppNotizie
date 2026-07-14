@@ -1,7 +1,6 @@
 # Environment variables and local Vercel metadata
 .env
 .env.*
-!.env.example
 .vercel
 
 # Local tooling
